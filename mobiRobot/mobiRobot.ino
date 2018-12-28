@@ -84,7 +84,9 @@ void loop()
 	lcd.clear();
 	lcd.print("loop");
 	delay(2000);
-	/*
+
+
+	
 	lcd.clear();
 	lcd.println("Turn 30");
 	turnRight(30);
@@ -105,17 +107,17 @@ void loop()
 
 
 
-	digitalWrite(LED_PIN, LOW);*/
+	digitalWrite(LED_PIN, LOW);
 
-	for (int i = 0; i < 30; i++)
-	{
+	//for (int i = 0; i < 30; i++)
+	//{
 
-		Serial.print("Pin nr ");
-		Serial.print(i);
-		Serial.print("is interrrupt");
-		Serial.println(digitalPinToInterrupt(i));
-		delay(1000);
-	}
+	//	Serial.print("Pin nr ");
+	//	Serial.print(i);
+	//	Serial.print("is interrrupt");
+	//	Serial.println(digitalPinToInterrupt(i));
+	//	delay(1000);
+	//}
 
 
 
