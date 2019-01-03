@@ -8,8 +8,8 @@
 
 #include <ZumoShield.h>
 
-
-//#include <Wire.h>
+//Startbutton
+#define PUSHBUTTON 19
 
 //PINS
 #define LED_PIN 13
@@ -46,20 +46,20 @@ volatile int rightEncoderValue = 0;
 volatile byte oldPortB;
 volatile bool testEventFlag = false;
 
+
+//Variable für Programmstart nicht gut!!!! interrupt falsch verwendet
+volatile bool Prog_START = false;
+
 void setup()
 {
-
-
-	
-
-	////Start communication
-	//Serial.begin(9600);
-	//while (!Serial)
-	//{
-	//	;
-	//}
-	//establishContact();
-	//Serial.println("Serial connection ready");
+	//Start communication
+	Serial.begin(9600);
+	while (!Serial)
+	{
+		;
+	}
+	establishContact();
+	Serial.println("Serial connection ready");
 
 
 	lcd.init();
@@ -75,6 +75,7 @@ void setup()
 	//right
 	pinMode(RIGHT_GREEN_PIN, INPUT);
 	pinMode(RIGHT_YELLOW_PIN, INPUT);
+
 	//Initialize interupts
 	//attachInterrupt(digitalPinToInterrupt(LEFT_YELLOW_PIN), leftEncoder, CHANGE);
 	//attachInterrupt(digitalPinToInterrupt(RIGHT_YELLOW_PIN), rightEncoder, CHANGE);
@@ -85,65 +86,44 @@ void setup()
 	sbi(PCICR, PCIE0); //enable interrupt 
 	sbi(PCMSK0, PCINT3); //enable interrupt for pin 50
 	sbi(PCMSK0, PCINT2); //enable interrupt for pin 51
+
+	//Pin und Interrupt Definitionen
+	pinMode(PUSHBUTTON, INPUT_PULLUP);
+	attachInterrupt(digitalPinToInterrupt(PUSHBUTTON), Pushbutton_change, RISING);
 	// uncomment one or both of the following lines if your motors' directions need to be flipped
 	motors.flipLeftMotor(true);
 	motors.flipRightMotor(true);
 	
+	//line array
+	reflectanceSensors.init();
 }
 
 
 void loop()
 {
-	lcd.clear();
-	lcd.setCursor(0, 0);
-	lcd.print("remove cable");
-	delay(5000);
-	lcd.clear();
-	lcd.setCursor(0, 0);
-	lcd.print("start");
-	turnLeft(30);
-	lcd.clear();
-	lcd.setCursor(0, 0);
-	lcd.print("end loop");
-	delay(1500);
-	/*digitalWrite(LED_PIN, HIGH);
-	lcd.clear();
-	lcd.print("loop");
-	delay(2000);
 
 
-	
-	//lcd.clear();
-	//lcd.println("Turn 30");
-	//turnRight(30);
-	//delay(1000);
-	//lcd.clear();
-	//lcd.println("straight 240");
-	//driveDistance(240);
-	//delay(1000);
-	//lcd.clear();
-	//lcd.println("turn 30");
-	//turnLeft(30);
-	//delay(1000);
-	//lcd.clear();
-	//lcd.println("straight 400");
-	//driveDistance(400);
-	//digitalWrite(LED_PIN, HIGH);
-	//delay(10000);
+	if (Prog_START)
+	{
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("start");
+		turnRight(30);
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("end loop");
+		delay(1500);
+	}
+	else
+	{
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("Wait");
+		delay(500);
+	}
 
 
 
-	//digitalWrite(LED_PIN, LOW);
-	//int i;
-	//for (i= 0; i < 30; i++)
-	//{
-
-	//	Serial.print("Pin nr ");
-	//	Serial.print(i);
-	//	Serial.print("is interrrupt");
-	//	Serial.println(digitalPinToInterrupt(i));
-	//	delay(1000);
-	//}
 
 	//if (testEventFlag)
 	//{
@@ -151,7 +131,7 @@ void loop()
 	//	Serial.println(leftEncoderValue);
 	//	Serial.print("right Encoder: ");
 	//	Serial.println(rightEncoderValue);
-	///*	lcd.clear();
+	//	lcd.clear();
 	//	lcd.println("eventTriggered");
 	//	lcd.println(oldPortB, BIN);*/
 	//	testEventFlag = false;
@@ -185,6 +165,7 @@ ISR(PCINT0_vect)
 	oldPortB = interruptVector; //for detecting the change
 	sei(); //restart interrupts
 }
+
 void leftEncoder(byte yellow_pin_bit)
 {
 	leftReadingAPhase = digitalRead(LEFT_GREEN_PIN);
@@ -241,8 +222,9 @@ bool turnLeft(int angle) // turn from 0-360grad
 {
 	int count=getCountsForAngle(angle);
 	resetEncoderCounters();
-	int speed = 80;
+	int speed = 100;
 	motors.setSpeeds(-1 * (speed + 3), speed); //backwards is a little bit slower than forward
+	int i = 0;
 	while ((leftEncoderValue > -count) || (rightEncoderValue < count))
 	{
 		if (rightEncoderValue >= count)
@@ -252,6 +234,15 @@ bool turnLeft(int angle) // turn from 0-360grad
 		if (leftEncoderValue <= -count)
 		{
 			motors.setLeftSpeed(0);
+		}
+		i++;
+		if (i % 20)
+		{
+			lcd.clear();
+			lcd.setCursor(0, 0);
+			lcd.print(rightEncoderValue);
+			lcd.setCursor(6, 0);
+			lcd.print(leftEncoderValue);
 		}
 	}
 	motors.setSpeeds(0, 0);
@@ -263,8 +254,9 @@ bool turnRight(int angle) //turn from 0-360 grad
 {
 	int count = getCountsForAngle(angle);
 	resetEncoderCounters();
-	int speed = 80;
+	int speed = 100;
 	motors.setSpeeds(speed+2, -1 * (speed));
+	int i = 0;
 	while ((rightEncoderValue > -count) || (leftEncoderValue < count))
 	{
 		if (leftEncoderValue >= count)
@@ -275,9 +267,22 @@ bool turnRight(int angle) //turn from 0-360 grad
 		{
 			motors.setRightSpeed(0);
 		}
+		i++;
+		if (i % 20)
+		{
+			lcd.clear();
+			lcd.setCursor(0, 0);
+			lcd.print(rightEncoderValue);
+			lcd.setCursor(6, 0);
+			lcd.print(leftEncoderValue);
+		}
 	}
 	motors.setSpeeds(0, 0);
 	resetEncoderCounters();
+}
+
+void Pushbutton_change() {
+	Prog_START = !Prog_START;
 }
 
 int getCountsForAngle(int angle)
