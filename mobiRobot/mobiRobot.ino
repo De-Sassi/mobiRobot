@@ -13,18 +13,23 @@
 
 //PINS
 #define LED_PIN 13
-#define LEFT_GREEN_PIN 50 
-#define LEFT_YELLOW_PIN 21 
+#define LEFT_GREEN_PIN 25 
+#define LEFT_YELLOW_PIN 50  //PCINT3 Do not change because of interrupts!
 #define RIGHT_GREEN_PIN 24
-#define RIGHT_YELLOW_PIN 20
+#define RIGHT_YELLOW_PIN 51 //PCINT2 Do not change because of interrupts!
 //
 #define COUNTS_PER_CPOMPLETE_REVOLUTION 693
 #define WHEEL_CIRCUMFERENCE 119 //in mm
 #define COUNT_FULL_LEFT_CIRCLE 1545 
 
+//for interrupt
+#define cbi(sfr,bit) (_SFR_BYTE(sfr)&= ~_BV(bit)) //clear bit in byte at sfr adress
+#define sbi(sfr,bit) (_SFR_BYTE(sfr)|= _BV(bit)) //Set bit in byte at sfr adress
+
+
 ZumoMotors motors;
 
-DFRobot_LCD lcd(16, 2);  //16 characters and 2 lines of show
+//DFRobot_LCD lcd(16, 2);  //16 characters and 2 lines of show
 
 
 ZumoBuzzer buzzer;
@@ -32,13 +37,14 @@ ZumoReflectanceSensorArray reflectanceSensors;
 Pushbutton button(ZUMO_BUTTON);
 
 //Encoder
-int leftReadingAPhase = LOW;
-int leftReadingAPhaseOld = LOW;
-int rightReadingAPhase = LOW;
-int rightReadingAPhaseOld = LOW;
+volatile int leftReadingAPhase = LOW;
+volatile int leftReadingAPhaseOld = LOW;
+volatile int rightReadingAPhase = LOW;
+volatile int rightReadingAPhaseOld = LOW;
 volatile int leftEncoderValue = 0;
 volatile int rightEncoderValue = 0;
-
+volatile byte oldPortB;
+volatile bool testEventFlag = false;
 
 void setup()
 {
@@ -55,10 +61,11 @@ void setup()
 	establishContact();
 	Serial.println("Serial connection ready");
 
-	lcd.init();
+	//lcd.init();
+
+
 	//set LED pin
 	pinMode(LED_PIN, OUTPUT);
-
 	//set encoder pins
 	//left
 	pinMode(LEFT_GREEN_PIN, INPUT);
@@ -66,50 +73,55 @@ void setup()
 	//right
 	pinMode(RIGHT_GREEN_PIN, INPUT);
 	pinMode(RIGHT_YELLOW_PIN, INPUT);
-
 	//Initialize interupts
-	attachInterrupt(digitalPinToInterrupt(LEFT_YELLOW_PIN), leftEncoder, CHANGE);
-	attachInterrupt(digitalPinToInterrupt(RIGHT_YELLOW_PIN), rightEncoder, CHANGE);
+	//attachInterrupt(digitalPinToInterrupt(LEFT_YELLOW_PIN), leftEncoder, CHANGE);
+	//attachInterrupt(digitalPinToInterrupt(RIGHT_YELLOW_PIN), rightEncoder, CHANGE);
+	// ISCn1=0 und ISCn0=1 is for CHANGE
+	oldPortB = PINB;
+	digitalWrite(LEFT_YELLOW_PIN, HIGH);
+	digitalWrite(RIGHT_YELLOW_PIN, HIGH);
+	sbi(PCICR, PCIE0); //enable interrupt 
+	sbi(PCMSK0, PCINT3); //enable interrupt for pin 50
+	sbi(PCMSK0, PCINT2); //enable interrupt for pin 51
 	// uncomment one or both of the following lines if your motors' directions need to be flipped
 	motors.flipLeftMotor(true);
 	motors.flipRightMotor(true);
-
 	
 }
 
 
 void loop()
 {
-	digitalWrite(LED_PIN, HIGH);
+	/*digitalWrite(LED_PIN, HIGH);
 	lcd.clear();
 	lcd.print("loop");
 	delay(2000);
-
+*/
 
 	
-	lcd.clear();
-	lcd.println("Turn 30");
-	turnRight(30);
-	delay(1000);
-	lcd.clear();
-	lcd.println("straight 240");
-	driveDistance(240);
-	delay(1000);
-	lcd.clear();
-	lcd.println("turn 30");
-	turnLeft(30);
-	delay(1000);
-	lcd.clear();
-	lcd.println("straight 400");
-	driveDistance(400);
-	digitalWrite(LED_PIN, HIGH);
-	delay(10000);
+	//lcd.clear();
+	//lcd.println("Turn 30");
+	//turnRight(30);
+	//delay(1000);
+	//lcd.clear();
+	//lcd.println("straight 240");
+	//driveDistance(240);
+	//delay(1000);
+	//lcd.clear();
+	//lcd.println("turn 30");
+	//turnLeft(30);
+	//delay(1000);
+	//lcd.clear();
+	//lcd.println("straight 400");
+	//driveDistance(400);
+	//digitalWrite(LED_PIN, HIGH);
+	//delay(10000);
 
 
 
-	digitalWrite(LED_PIN, LOW);
-
-	//for (int i = 0; i < 30; i++)
+	//digitalWrite(LED_PIN, LOW);
+	//int i;
+	//for (i= 0; i < 30; i++)
 	//{
 
 	//	Serial.print("Pin nr ");
@@ -119,16 +131,52 @@ void loop()
 	//	delay(1000);
 	//}
 
-
+	if (testEventFlag)
+	{
+		Serial.print("Left Encoder: ");
+		Serial.println(leftEncoderValue);
+		Serial.print("right Encoder: ");
+		Serial.println(rightEncoderValue);
+	/*	lcd.clear();
+		lcd.println("eventTriggered");
+		lcd.println(oldPortB, BIN);*/
+		testEventFlag = false;
+	}
 
 }
 
-void leftEncoder()
+
+ISR(PCINT0_vect)
+{
+	const int rightBit = 3;
+	const int leftBit = 2;
+	cli(); //stop interrupts fro happening befor pin read;
+	byte interruptVector = PINB;
+	byte compareByte = interruptVector ^ oldPortB;
+	////////////////////
+	if ((compareByte >> rightBit) & 0x01)
+	{
+		//gets only the bit of the righ yellow pin
+		byte onlyRightYellowBit = (interruptVector >> rightBit) & 0x01;
+		rightEncoder(onlyRightYellowBit);
+	}
+	if ((compareByte >> leftBit) & 0x01)
+	{
+		//gets only the bit of the left yellow pin
+		byte onlyLeftYellowBit = (interruptVector >> leftBit) & 0x01;
+		leftEncoder(onlyLeftYellowBit);
+	}
+	
+	testEventFlag = true;
+	oldPortB = interruptVector; //for detecting the change
+	sei(); //restart interrupts
+}
+void leftEncoder(byte yellow_pin_bit)
 {
 	leftReadingAPhase = digitalRead(LEFT_GREEN_PIN);
 	if ((leftReadingAPhase == HIGH) && (leftReadingAPhaseOld == LOW))
 	{
-		if (digitalRead(LEFT_YELLOW_PIN) == HIGH)
+		if (yellow_pin_bit == HIGH)
 		{
 			leftEncoderValue++;
 		}
@@ -139,13 +187,13 @@ void leftEncoder()
 	leftReadingAPhaseOld = leftReadingAPhase;
 }
 
-void rightEncoder()
+void rightEncoder(byte yellow_pin_bit)
 {
 
 	rightReadingAPhase = digitalRead(RIGHT_GREEN_PIN);
 	if ((rightReadingAPhase == HIGH) && (rightReadingAPhaseOld == LOW))
 	{
-		if (digitalRead(RIGHT_YELLOW_PIN) == HIGH)
+		if (yellow_pin_bit == HIGH)
 		{
 			rightEncoderValue--;
 		}
