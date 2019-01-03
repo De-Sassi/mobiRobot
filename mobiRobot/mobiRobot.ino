@@ -29,7 +29,7 @@
 
 ZumoMotors motors;
 
-//DFRobot_LCD lcd(16, 2);  //16 characters and 2 lines of show
+DFRobot_LCD lcd(16, 2);  //16 characters and 2 lines of show
 
 
 ZumoBuzzer buzzer;
@@ -52,16 +52,18 @@ void setup()
 
 	
 
-	//Start communication
-	Serial.begin(9600);
-	while (!Serial)
-	{
-		;
-	}
-	establishContact();
-	Serial.println("Serial connection ready");
+	////Start communication
+	//Serial.begin(9600);
+	//while (!Serial)
+	//{
+	//	;
+	//}
+	//establishContact();
+	//Serial.println("Serial connection ready");
 
-	//lcd.init();
+
+	lcd.init();
+
 
 
 	//set LED pin
@@ -92,11 +94,23 @@ void setup()
 
 void loop()
 {
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("remove cable");
+	delay(5000);
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("start");
+	turnLeft(30);
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("end loop");
+	delay(1500);
 	/*digitalWrite(LED_PIN, HIGH);
 	lcd.clear();
 	lcd.print("loop");
 	delay(2000);
-*/
+
 
 	
 	//lcd.clear();
@@ -131,17 +145,17 @@ void loop()
 	//	delay(1000);
 	//}
 
-	if (testEventFlag)
-	{
-		Serial.print("Left Encoder: ");
-		Serial.println(leftEncoderValue);
-		Serial.print("right Encoder: ");
-		Serial.println(rightEncoderValue);
-	/*	lcd.clear();
-		lcd.println("eventTriggered");
-		lcd.println(oldPortB, BIN);*/
-		testEventFlag = false;
-	}
+	//if (testEventFlag)
+	//{
+	//	Serial.print("Left Encoder: ");
+	//	Serial.println(leftEncoderValue);
+	//	Serial.print("right Encoder: ");
+	//	Serial.println(rightEncoderValue);
+	///*	lcd.clear();
+	//	lcd.println("eventTriggered");
+	//	lcd.println(oldPortB, BIN);*/
+	//	testEventFlag = false;
+	//}
 
 }
 
@@ -227,7 +241,7 @@ bool turnLeft(int angle) // turn from 0-360grad
 {
 	int count=getCountsForAngle(angle);
 	resetEncoderCounters();
-	int speed = 75;
+	int speed = 80;
 	motors.setSpeeds(-1 * (speed + 3), speed); //backwards is a little bit slower than forward
 	while ((leftEncoderValue > -count) || (rightEncoderValue < count))
 	{
@@ -249,7 +263,7 @@ bool turnRight(int angle) //turn from 0-360 grad
 {
 	int count = getCountsForAngle(angle);
 	resetEncoderCounters();
-	int speed = 75;
+	int speed = 80;
 	motors.setSpeeds(speed+2, -1 * (speed));
 	while ((rightEncoderValue > -count) || (leftEncoderValue < count))
 	{
