@@ -4,8 +4,11 @@
  Author:	delia
 */
 
-#include <DFRobot_LCD.h>
 
+#include <PN532_I2C.h>
+#include <PN532.h>
+#include <NfcAdapter.h>
+#include <DFRobot_LCD.h>
 #include <ZumoShield.h>
 
 //Startbutton
@@ -32,6 +35,9 @@ DFRobot_LCD lcd(16, 2);  //16 characters and 2 lines of show
 ZumoBuzzer buzzer;
 ZumoReflectanceSensorArray reflectanceSensors;
 Pushbutton button(ZUMO_BUTTON);
+
+PN532_I2C pn532_i2c(Wire);
+NfcAdapter nfc = NfcAdapter(pn532_i2c);
 
 //Encoder
 volatile int leftReadingAPhase = LOW;
@@ -149,59 +155,29 @@ void loop()
 {
 
 
-	//sensors[0] (leftest) is broken;
-	//sensor[5] is most right
 
-	//unsigned int sensors[6];
-
-	// Get the position of the line.  Note that we *must* provide the "sensors"
-	// argument to readLine() here, even though we are not interested in the
-	// individual sensor readings
-	/*int position = reflectanceSensors.readLine(sensors);
-	Serial.println("new");
-	Serial.println(sensors[0]);
-	Serial.println(sensors[1]);
-	Serial.println(sensors[2]);
-	Serial.println(sensors[3]);
-	Serial.println(sensors[4]);
-	Serial.println(sensors[5]);
-	delay(2000);*/
+	readNFCTag();
 
 
-	if (Prog_START)
-	{
-		/*lcd.clear();
-		lcd.setCursor(0, 0);
-		lcd.print("start");*/
-		driverOverBridge();
-
-	/*	lcd.clear();
-		lcd.setCursor(0, 0);
-		lcd.print("end loop");
-		delay(1500);*/
-	}
-	else
-	{
-		motors.setSpeeds(0, 0);
-		lcd.clear();
-		lcd.setCursor(0, 0);
-		lcd.print("Wait");
-		delay(500);
-	}
-
-
-
-
-	//if (testEventFlag)
+	//if (Prog_START)
 	//{
-	//	Serial.print("Left Encoder: ");
-	//	Serial.println(leftEncoderValue);
-	//	Serial.print("right Encoder: ");
-	//	Serial.println(rightEncoderValue);
+	//	/*lcd.clear();
+	//	lcd.setCursor(0, 0);
+	//	lcd.print("start");*/
+	//	driverOverBridge();
+
+	///*	lcd.clear();
+	//	lcd.setCursor(0, 0);
+	//	lcd.print("end loop");
+	//	delay(1500);*/
+	//}
+	//else
+	//{
+	//	motors.setSpeeds(0, 0);
 	//	lcd.clear();
-	//	lcd.println("eventTriggered");
-	//	lcd.println(oldPortB, BIN);*/
-	//	testEventFlag = false;
+	//	lcd.setCursor(0, 0);
+	//	lcd.print("Wait");
+	//	delay(500);
 	//}
 
 }
@@ -392,6 +368,10 @@ void establishContact() {
 //Line Array
 void initLineArray()
 {
+
+	//sensors[0] (leftest) is broken;
+	//sensor[5] is most right
+
 	bool calibrateWithTurn = false;
 	if (calibrateWithTurn)
 	{
@@ -587,3 +567,15 @@ void driverOverBridge()
 }
 
 //////////////////////
+//NFC tag
+void readNFCTag()
+{
+	if (nfc.tagPresent()) {
+		NfcTag tag = nfc.read();
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print(tag.getNdefMessage().getRecord(0).getText());
+	}
+	delay(4000);
+	lcd.clear();
+}
