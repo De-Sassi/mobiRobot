@@ -167,39 +167,27 @@ void loop()
 	Serial.println(sensors[5]);
 	delay(2000);*/
 
-	lcd.clear();
-	lcd.setCursor(0, 0);
-	lcd.print("start");
-	delay(1000);
-	readMorseCode();
-	delay(2000);
-	lcd.clear();
-	lcd.setCursor(0, 0);
-	lcd.print("End loop");
-	//if (Prog_START)
-	//{
-	//	lcd.clear();
-	//	lcd.setCursor(0, 0);
-	//	lcd.print("start");
-	//	driveDistance(100);
-	//	lcd.clear();
-	//	lcd.setCursor(0, 0);
-	//	lcd.print("next");
-	//	delay(2000);
-	//	driveDistance(400);
-	//	//turnRight(30);
-	//	lcd.clear();
-	//	lcd.setCursor(0, 0);
-	//	lcd.print("end loop");
-	//	delay(1500);
-	//}
-	//else
-	//{
-	//	lcd.clear();
-	//	lcd.setCursor(0, 0);
-	//	lcd.print("Wait");
-	//	delay(500);
-	//}
+
+	if (Prog_START)
+	{
+		/*lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("start");*/
+		driverOverBridge();
+
+	/*	lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("end loop");
+		delay(1500);*/
+	}
+	else
+	{
+		motors.setSpeeds(0, 0);
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("Wait");
+		delay(500);
+	}
 
 
 
@@ -587,5 +575,15 @@ int lineposition(unsigned int sensors[5]) {
 
 ///////////////////
 //Banden Fahren
+void driverOverBridge()
+{
+	//rechter Sensor A13
+	//linker Sensor A14
+	const int MAX_SPEED = 100; //Das Programm ist für diesen Speed ausgelegt
+	int speedDifference = ((2241.2*pow(analogRead(13), -0.96) - 1) - (2241.2*pow(analogRead(14), -0.96) - 1)) * 20;
+	int m1Speed = MAX_SPEED + speedDifference;
+	int m2Speed = MAX_SPEED - speedDifference;
+	motors.setSpeeds(m1Speed, m2Speed); 
+}
 
 //////////////////////
