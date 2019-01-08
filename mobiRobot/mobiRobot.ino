@@ -154,31 +154,33 @@ const int speed = 100;
 void loop()
 {
 
-
-
-	readNFCTag();
-
-
-	//if (Prog_START)
-	//{
-	//	/*lcd.clear();
-	//	lcd.setCursor(0, 0);
-	//	lcd.print("start");*/
-	//	driverOverBridge();
-
-	///*	lcd.clear();
-	//	lcd.setCursor(0, 0);
-	//	lcd.print("end loop");
-	//	delay(1500);*/
-	//}
-	//else
-	//{
-	//	motors.setSpeeds(0, 0);
-	//	lcd.clear();
-	//	lcd.setCursor(0, 0);
-	//	lcd.print("Wait");
-	//	delay(500);
-	//}
+	if (Prog_START)
+	{
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("start");
+		/*driverOverBridge();*/
+		driveDistance(100);
+		delay(1000);
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("turn");
+		turnLeft(30);
+		delay(1000);
+		driveDistance(100);
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("end loop");
+		delay(1500);
+	}
+	else
+	{
+		motors.setSpeeds(0, 0);
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("Wait");
+		delay(500);
+	}
 
 }
 
@@ -349,6 +351,7 @@ int getCountsForDistance(int distanceInMM)
 
 void Pushbutton_change() {
 	Prog_START = !Prog_START;
+	//not right yet. Button is not debounced yet
 }
 
 void establishContact() {
