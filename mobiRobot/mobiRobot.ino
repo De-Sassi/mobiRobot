@@ -160,7 +160,8 @@ void setup()
 
 void loop()
 {
-
+	driveOnLine();
+	
 	//unsigned int sensors[5];
 	//reflectanceSensors.read(sensors); //Sensoren werden ausgelesen
 
@@ -184,60 +185,78 @@ void loop()
 	//lcd.print(line);
 	//delay(2000);
 
-	if (Prog_START)
-	{
-		lcd.clear();
-		lcd.setCursor(0, 0);
-		lcd.print("start");
-		//////////
+	//if (Prog_START)
+	//{
+	//	lcd.clear();
+	//	lcd.setCursor(0, 0);
+	//	lcd.print("start");
+	//	//////////
 
-		turnLeft(45);
-		delay(2000);
-		turnRight(45);
-		delay(2000);
 
-		/*driveToStraightBridge();
+	//	/*driveToStraightBridge();
 
-		lcd.clear();
-		lcd.setCursor(0, 0);
-		lcd.print("check bridge");
-		delay(1000);
-		bool stillOnLine = true;
+	//	lcd.clear();
+	//	lcd.setCursor(0, 0);
+	//	lcd.print("check bridge");
+	//	delay(1000);*/
+	//	bool stillOnLine = true;
+	//	bool bridgeFree = distanceSensorShort() > 6;
+	//	int i = 0;
+	//	while (bridgeFree && stillOnLine)
+	//	{
+	//		if (i == 0)
+	//		{
+	//			lcd.clear();
+	//			lcd.setCursor(0, 0);
+	//			lcd.print("first while loop");
+	//		}
+	//		driveOnLine();
+	//		stillOnLine = lineDetected();
+	//		bridgeFree = distanceSensorShort() > 6;
+	//		i++;
 
-		while (distanceSensorShort() > 6 && stillOnLine)
-		{
-			driveOnLine();
-			stillOnLine = lineDetected();
+	//	}
+	//	lcd.clear();
+	//	lcd.setCursor(0, 0);
+	//	lcd.print("out of while");
+	//	motors.setSpeeds(0, 0);
+	//	if (!bridgeFree)
+	//	{
+	//		lcd.clear();
+	//		lcd.setCursor(0, 0);
+	//		lcd.print("bridge is blocked");
+	//	}
+	//	else
+	//	{
+	//		if (!stillOnLine)
+	//		{
+	//			lcd.clear();
+	//			lcd.setCursor(0, 0);
+	//			lcd.print("bridge end");
+	//		}
+	//		else
+	//		{
 
-		}
-		motors.setSpeeds(0, 0);
-		if (stillOnLine)
-		{
-			lcd.clear();
-			lcd.setCursor(0, 0);
-			lcd.print("bridge is blocked");
-		}
-		else
-		{
-			lcd.clear();
-			lcd.setCursor(0, 0);
-			lcd.print("bridge end");
-		}
-		delay(2000);*/
-		///////////
-		lcd.clear();
-		lcd.setCursor(0, 0);
-		lcd.print("end loop");
-		delay(1500);
-	}
-	else
-	{
-		motors.setSpeeds(0, 0);
-		lcd.clear();
-		lcd.setCursor(0, 0);
-		lcd.print("Wait");
-		delay(500);
-	}
+	//			lcd.clear();
+	//			lcd.setCursor(0, 0);
+	//			lcd.print("wtf??");
+	//		}
+	//	}
+	//	delay(2000);
+	//	///////////
+	//	lcd.clear();
+	//	lcd.setCursor(0, 0);
+	//	lcd.print("end loop");
+	//	delay(1500);
+	//}
+	//else
+	//{
+	//	motors.setSpeeds(0, 0);
+	//	lcd.clear();
+	//	lcd.setCursor(0, 0);
+	//	lcd.print("Wait");
+	//	delay(500);
+	//}
 
 }
 
@@ -247,9 +266,9 @@ void loop()
 void driveToStraightBridge()
 {
 	turnLeft(30);
-	driveDistance(580);
+	driveDistance(450);
 	turnRight(30);
-	driveDistance(100);
+	driveDistance(150);
 	//start looking for line
 	while (!lineDetected())
 	{
@@ -429,6 +448,11 @@ void driveDistance(int distanceInMM)
 			leftMotorRunning = false;
 		}
 	}
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print(rightEncoderValue);
+	lcd.setCursor(6, 0);
+	lcd.print(leftEncoderValue);
 	resetEncoderCounters();
 }
 
@@ -479,7 +503,7 @@ bool turnRight(int angle) //turn from 0-360 grad
 	bool rightMotorRunning = true;
 	while (rightMotorRunning || leftMotorRunning)
 	{
-		cli();		
+		cli();
 		bool reachedRightLimit = rightEncoderValue <= -1 * count;
 		bool reachedLeftLimit = leftEncoderValue >= count;
 		sei();
@@ -555,7 +579,7 @@ void initLineArray()
 	//sensors[0] (leftest) is broken;
 	//sensor[5] is most right
 
-	bool calibrateWithTurn = false;
+	bool calibrateWithTurn = true;
 	if (calibrateWithTurn)
 	{
 		// Initialize the reflectance sensors module
