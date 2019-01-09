@@ -102,7 +102,7 @@ char morse_strings[37][6] = {
  "--...",
  "---..",
  "----.", };
-const int threshold = 150;
+const int threshold = 700;
 
 
 
@@ -160,6 +160,7 @@ void setup()
 
 void loop()
 {
+
 	//unsigned int sensors[5];
 	//reflectanceSensors.read(sensors); //Sensoren werden ausgelesen
 
@@ -168,14 +169,19 @@ void loop()
 	//lcd.print(sensors[0]);
 	//lcd.setCursor(4, 0);
 	//lcd.print(sensors[1]);
-	//lcd.setCursor(8, 0);
+	//lcd.setCursor(9, 0);
 	//lcd.print(sensors[2]);
 	//lcd.setCursor(0, 1);
 	//lcd.print(sensors[3]);
 	//lcd.setCursor(4, 1);
 	//lcd.print(sensors[4]);
-	//lcd.setCursor(8, 1);
+	//lcd.setCursor(9, 1);
 	//lcd.print(sensors[5]);
+
+
+	//bool line=lineDetected();
+	//lcd.setCursor(15, 1);
+	//lcd.print(line);
 	//delay(2000);
 
 	if (Prog_START)
@@ -183,15 +189,42 @@ void loop()
 		lcd.clear();
 		lcd.setCursor(0, 0);
 		lcd.print("start");
-		/*driverOverBridge();*/
-		driveDistance(100);
-		delay(1000);
+		//////////
+
+		turnLeft(45);
+		delay(2000);
+		turnRight(45);
+		delay(2000);
+
+		/*driveToStraightBridge();
+
 		lcd.clear();
 		lcd.setCursor(0, 0);
-		lcd.print("turn");
-		turnLeft(30);
+		lcd.print("check bridge");
 		delay(1000);
-		driveDistance(100);
+		bool stillOnLine = true;
+
+		while (distanceSensorShort() > 6 && stillOnLine)
+		{
+			driveOnLine();
+			stillOnLine = lineDetected();
+
+		}
+		motors.setSpeeds(0, 0);
+		if (stillOnLine)
+		{
+			lcd.clear();
+			lcd.setCursor(0, 0);
+			lcd.print("bridge is blocked");
+		}
+		else
+		{
+			lcd.clear();
+			lcd.setCursor(0, 0);
+			lcd.print("bridge end");
+		}
+		delay(2000);*/
+		///////////
 		lcd.clear();
 		lcd.setCursor(0, 0);
 		lcd.print("end loop");
@@ -208,12 +241,113 @@ void loop()
 
 }
 
+/////////////////////////////
+// modules
 
+void driveToStraightBridge()
+{
+	turnLeft(30);
+	driveDistance(580);
+	turnRight(30);
+	driveDistance(100);
+	//start looking for line
+	while (!lineDetected())
+	{
+		driveDistance(10);
+	}
+	motors.setSpeeds(0, 0);
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("line detected");
+
+	delay(2000);
+}
+
+void driveOverStraightBridge()
+{
+	bool stillOnLine = true;
+	while (stillOnLine)
+	{
+		driveOnLine();
+		stillOnLine = lineDetected();
+	}
+	motors.setSpeeds(0, 0);
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("Bridge end");
+	delay(2000);
+
+}
+
+
+void driveToBridge1()
+{
+	turnRight(30);
+	driveDistance(250);
+	turnLeft(30);
+	driveDistance(200);
+	//start looking for line
+	while (!lineDetected())
+	{
+		driveDistance(10);
+	}
+
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("line detected");
+
+	delay(2000);
+}
+
+void driveOnBridge1()
+{
+	//does not work anymore. has a problem with the line sensor. goes directly into bridge open
+
+	bool stillOnLine = true;
+	int i = 0;
+	while ((distanceSensorShort() > 6) && stillOnLine)
+	{
+		driveOnLine();
+		stillOnLine = lineDetected();
+		if (i % 20)
+		{
+			lcd.clear();
+			lcd.setCursor(0, 0);
+			lcd.print(stillOnLine);
+		}
+		i++;
+
+	}
+	if (stillOnLine)
+	{
+		motors.setSpeeds(0, 0);
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("road blocked");
+		delay(2000);
+	}
+	else
+	{
+		//ready for bridge	
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("bridge open");
+		motors.setSpeeds(0, 0);
+		delay(2000);
+		while (!lineDetected())
+		{
+			driverOverBridge();
+		}
+	}
+
+
+}
+/////////////
 ISR(PCINT0_vect)
 {
 	const int rightBit = 3;
 	const int leftBit = 2;
-	cli(); //stop interrupts fro happening befor pin read;
+
 	byte interruptVector = PINB;
 	byte compareByte = interruptVector ^ oldPortB;
 	////////////////////
@@ -232,7 +366,7 @@ ISR(PCINT0_vect)
 
 	testEventFlag = true;
 	oldPortB = interruptVector; //for detecting the change
-	sei(); //restart interrupts
+
 }
 
 ///////////////// 
@@ -276,15 +410,23 @@ void driveDistance(int distanceInMM)
 	int count = getCountsForDistance(distanceInMM);
 	resetEncoderCounters();
 	motors.setSpeeds(100, 100);
-	while ((leftEncoderValue < count) || (rightEncoderValue < count))
+	bool leftMotorRunning = true;
+	bool rightMotorRunning = true;
+	while (rightMotorRunning || leftMotorRunning) //both motors need to be stopped to continue
 	{
-		if (rightEncoderValue >= count)
+		cli();
+		bool reachedRightLimit = rightEncoderValue >= count;
+		bool reachedLeftLimit = leftEncoderValue >= count;
+		sei();
+		if (reachedRightLimit)
 		{
 			motors.setRightSpeed(0);
+			rightMotorRunning = false;
 		}
-		if (leftEncoderValue >= count)
+		if (reachedLeftLimit)
 		{
 			motors.setLeftSpeed(0);
+			leftMotorRunning = false;
 		}
 	}
 	resetEncoderCounters();
@@ -292,64 +434,76 @@ void driveDistance(int distanceInMM)
 
 bool turnLeft(int angle) // turn from 0-360grad
 {
-	int count = getCountsForAngle(angle);
+	int count = 200;// getCountsForAngle(angle);
 	resetEncoderCounters();
 	int speed = 100;
-	motors.setSpeeds(-1 * (speed + 3), speed); //backwards is a little bit slower than forward
-	int i = 0;
-	while ((leftEncoderValue > -count) || (rightEncoderValue < count))
+	motors.setSpeeds(-1 * speed, speed);
+	bool leftMotorRunning = true;
+	bool rightMotorRunning = true;
+	while (rightMotorRunning || leftMotorRunning)
 	{
-		if (rightEncoderValue >= count)
+		cli();
+		bool reachedRightLimit = rightEncoderValue >= count;
+		bool reachedLeftLimit = leftEncoderValue <= -1 * count;
+		sei();
+		if (reachedRightLimit)
 		{
 			motors.setRightSpeed(0);
+			rightMotorRunning = false;
 		}
-		if (leftEncoderValue <= -count)
+		if (reachedLeftLimit)
 		{
 			motors.setLeftSpeed(0);
+			leftMotorRunning = false;
 		}
-		i++;
-		if (i % 20)
-		{
-			lcd.clear();
-			lcd.setCursor(0, 0);
-			lcd.print(rightEncoderValue);
-			lcd.setCursor(6, 0);
-			lcd.print(leftEncoderValue);
-		}
+
+
 	}
 	motors.setSpeeds(0, 0);
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print(rightEncoderValue);
+	lcd.setCursor(6, 0);
+	lcd.print(leftEncoderValue);
 	resetEncoderCounters();
 
 }
 
 bool turnRight(int angle) //turn from 0-360 grad
 {
-	int count = getCountsForAngle(angle);
+	int count = 200;//getCountsForAngle(angle);
 	resetEncoderCounters();
 	int speed = 100;
-	motors.setSpeeds(speed + 2, -1 * (speed));
-	int i = 0;
-	while ((rightEncoderValue > -count) || (leftEncoderValue < count))
+	motors.setSpeeds(speed, -1 * speed);
+	bool leftMotorRunning = true;
+	bool rightMotorRunning = true;
+	while (rightMotorRunning || leftMotorRunning)
 	{
-		if (leftEncoderValue >= count)
+		cli();		
+		bool reachedRightLimit = rightEncoderValue <= -1 * count;
+		bool reachedLeftLimit = leftEncoderValue >= count;
+		sei();
+		if (reachedLeftLimit)
 		{
 			motors.setLeftSpeed(0);
+			leftMotorRunning = false;
 		}
-		if (rightEncoderValue <= -count)
+		if (reachedRightLimit)
 		{
 			motors.setRightSpeed(0);
+			rightMotorRunning = false;
 		}
-		i++;
-		if (i % 20)
-		{
-			lcd.clear();
-			lcd.setCursor(0, 0);
-			lcd.print(rightEncoderValue);
-			lcd.setCursor(6, 0);
-			lcd.print(leftEncoderValue);
-		}
+
+
 	}
 	motors.setSpeeds(0, 0);
+
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print(rightEncoderValue);
+	lcd.setCursor(6, 0);
+	lcd.print(leftEncoderValue);
+
 	resetEncoderCounters();
 }
 
@@ -361,8 +515,10 @@ int getCountsForAngle(int angle)
 
 void resetEncoderCounters()
 {
+	cli();
 	leftEncoderValue = 0;
 	rightEncoderValue = 0;
+	sei();
 }
 
 int getCountsForDistance(int distanceInMM)
@@ -407,7 +563,7 @@ void initLineArray()
 
 		lcd.clear();
 		lcd.setCursor(0, 0);
-		lcd.print("Press sButton for Init");
+		lcd.print("Press sButton");
 
 		// Wait for the user button to be pressed and released
 		button.waitForButton();
@@ -425,7 +581,7 @@ void initLineArray()
 			reflectanceSensors.calibrate();
 
 			// Since our counter runs to 80, the total delay will be
-			// 80*20 = 1600 ms.
+			// 80*30 = 2400 ms.
 			delay(30);
 		}
 		motors.setSpeeds(0, 0);
@@ -459,7 +615,7 @@ void readMorseCode()
 		delay(10); //otherwise to fast. cant read all the letters. why? dont know..
 	}
 	delay(2000);
-	
+
 }
 
 bool readMorse()
@@ -569,7 +725,6 @@ int getDistanceForCounts(int counts)
 }
 
 int lineposition(unsigned int sensors[5]) {
-	const int threshold = 1600;
 	int Position = 0;
 	if (sensors[1] > threshold) { Position += 40; }
 	else { Position -= 40; };
@@ -584,10 +739,8 @@ int lineposition(unsigned int sensors[5]) {
 
 bool lineDetected() {
 	unsigned int sensors[5];
-	int threshhold = 150;
-
 	reflectanceSensors.read(sensors);
-	if (sensors[1] > threshhold || sensors[2] > threshhold || sensors[3] > threshhold || sensors[4] > threshhold) {
+	if (sensors[1] > threshold || sensors[2] > threshold || sensors[3] > threshold || sensors[4] > threshold) {
 		return true;
 	}
 	else {
@@ -602,10 +755,10 @@ void driverOverBridge()
 	//rechter Sensor A13
 	//linker Sensor A14
 	const int MAX_SPEED = 100; //Das Programm ist für diesen Speed ausgelegt
-	int speedDifference = (distanceNormalSensor(LEFT_DISTANCE_SENSOR) - distanceNormalSensor(RIGHT_DISTANCE_SENSOR)) * 20;
+	int speedDifference = (distanceNormalSensor(RIGHT_DISTANCE_SENSOR) - distanceNormalSensor(LEFT_DISTANCE_SENSOR)) * 20;
 	int m1Speed = MAX_SPEED + speedDifference;
 	int m2Speed = MAX_SPEED - speedDifference;
-	motors.setSpeeds(m1Speed, m2Speed); 
+	motors.setSpeeds(m1Speed, m2Speed);
 }
 
 //////////////////////
@@ -633,7 +786,6 @@ double distanceNormalSensor(int analogPinOfSensor)
 /// SHARP GP2Y0A51SK0F (2 - 15cm)
 double distanceSensorShort()
 {
-
 	int analogSensorPin = 6;
 	return (783.35*pow(analogRead(analogSensorPin), -0.841)*0.8 - 1.8);
 }
