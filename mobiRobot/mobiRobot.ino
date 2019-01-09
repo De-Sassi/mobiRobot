@@ -4,7 +4,7 @@
  Author:	delia
 */
 
-
+#include <Wire.h>
 #include <PN532_I2C.h>
 #include <PN532.h>
 #include <NfcAdapter.h>
@@ -96,7 +96,7 @@ char morse_strings[37][6] = {
  "--...",
  "---..",
  "----.", };
-int Schwellwert = 150;
+const int threshold = 150;
 
 
 
@@ -147,12 +147,30 @@ void setup()
 	lcd.clear();
 	lcd.setCursor(0, 0);
 	lcd.print("ready to start");
-}
 
-const int speed = 100;
+	//NFC
+	nfc.begin();
+}
 
 void loop()
 {
+	//unsigned int sensors[5];
+	//reflectanceSensors.read(sensors); //Sensoren werden ausgelesen
+
+	//lcd.clear();
+	//lcd.setCursor(0, 0);
+	//lcd.print(sensors[0]);
+	//lcd.setCursor(4, 0);
+	//lcd.print(sensors[1]);
+	//lcd.setCursor(8, 0);
+	//lcd.print(sensors[2]);
+	//lcd.setCursor(0, 1);
+	//lcd.print(sensors[3]);
+	//lcd.setCursor(4, 1);
+	//lcd.print(sensors[4]);
+	//lcd.setCursor(8, 1);
+	//lcd.print(sensors[5]);
+	//delay(2000);
 
 	if (Prog_START)
 	{
@@ -428,17 +446,17 @@ void driveOnLine()
 
 void readMorseCode()
 {
-	while (state!=5)
+	bool endMorse = false;
+	while (!endMorse)
 	{
-		readMorse();
+		endMorse = readMorse();
 		delay(10); //otherwise to fast. cant read all the letters. why? dont know..
 	}
 	delay(2000);
-	state = 0;
 	
 }
 
-void readMorse()
+bool readMorse()
 {
 	motors.setSpeeds(80, 80);
 
@@ -450,14 +468,15 @@ void readMorse()
 	const int black = 2;
 	const int newLetter = 3;
 	const int wordEnd = 4;
-	const int morsecodeEnd = 5;
+	const int digitalIRSensor = 23;
 
 	unsigned int sensors[5];
 	reflectanceSensors.read(sensors); //Sensoren werden ausgelesen
 
+
 	switch (state) {
 	case anfahren: //Anfahren
-		if (((sensors[2] + sensors[3]) / 2) > Schwellwert) {
+		if (digitalRead(digitalIRSensor) == false) {
 			state = black;
 			resetEncoderCounters();
 		}
@@ -468,12 +487,12 @@ void readMorse()
 	case white: //white 
 		whiteDistance = getDistanceForCounts(rightEncoderValue);
 
-		if (((sensors[2] + sensors[3]) / 2) < Schwellwert) { state = 1; digitalWrite(LED_BUILTIN, HIGH); }
+		if (digitalRead(digitalIRSensor) == true) { state = 1; digitalWrite(LED_BUILTIN, HIGH); }
 		else {
 			whiteDistance = getDistanceForCounts(rightEncoderValue);
 			resetEncoderCounters();
 			//Serial.println(whiteDistance);
-			if (whiteDistance <= 7) { state = black; }
+			if (whiteDistance <= 6) { state = black; }
 			else { state = newLetter; }
 		}
 		if (whiteDistance > 18) {
@@ -483,12 +502,12 @@ void readMorse()
 		break;
 
 	case black: //black 
-		if (((sensors[2] + sensors[3]) / 2) > Schwellwert) { state = 2; digitalWrite(LED_BUILTIN, LOW); }
+		if (digitalRead(digitalIRSensor) == false) { state = 2; digitalWrite(LED_BUILTIN, LOW); }
 		else {
 			blackDistance = getDistanceForCounts(rightEncoderValue);
 			resetEncoderCounters();
 			//Serial.println("black" + blackDistance);
-			if (blackDistance < 7) { Buchstabe[counterBuchstabe] = '.'; }//falls 5mm = Punkt sonst Strich
+			if (blackDistance < 6) { Buchstabe[counterBuchstabe] = '.'; }//falls 5mm = Punkt sonst Strich
 			else { Buchstabe[counterBuchstabe] = '-'; };
 			//Serial.println(Buchstabe);
 			++counterBuchstabe;
@@ -519,18 +538,19 @@ void readMorse()
 
 	case wordEnd: //Wort zu ende
 		lcd.clear();
-		lcd.setCursor(0,0);
+		lcd.setCursor(0, 0);
 		lcd.print(Wort);
 		motors.setSpeeds(0, 0);
 		delay(2000);
 		for (int i = 0; i < 6; ++i) {
 			Wort[i] = { 0 };
 		}
-		state = morsecodeEnd;
+		state = anfahren;
 		counterWort = 0;
+		return true;
 		break;
 	}
-
+	return false;
 }
 
 int getDistanceForCounts(int counts)
@@ -554,6 +574,19 @@ int lineposition(unsigned int sensors[5]) {
 	if (sensors[4] > threshold) { Position -= 40; }
 	else { Position += 40; };
 	return Position;
+}
+
+bool lineDetected() {
+	unsigned int sensors[5];
+	int threshhold = 150;
+
+	reflectanceSensors.read(sensors);
+	if (sensors[1] > threshhold || sensors[2] > threshhold || sensors[3] > threshhold || sensors[4] > threshhold) {
+		return true;
+	}
+	else {
+		return false;
+	}
 }
 
 ///////////////////
@@ -581,4 +614,26 @@ void readNFCTag()
 	}
 	delay(4000);
 	lcd.clear();
+}
+
+/////////////////////
+//Distance Sensors
+
+///Formel für Sharp Sensor in cm GP2Y0A41 (4-30cm)
+double distanceNormalSensor()
+{
+	int right = 7;
+	int left = 8;
+	int frontRight = 9;
+	int frontLeft = 10;
+
+	int analogSensorPin = frontLeft;
+	return 2241.2*pow(analogRead(analogSensorPin), -0.96) - 1;
+}
+/// SHARP GP2Y0A51SK0F (2 - 15cm)
+double distanceSensorShort()
+{
+
+	int analogSensorPin = 6;
+	return (783.35*pow(analogRead(analogSensorPin), -0.841)*0.8 - 1.8);
 }
