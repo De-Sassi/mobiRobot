@@ -14,13 +14,13 @@
 //Startbutton
 #define PUSHBUTTON 19
 
-//PINS
+//PINS Encoder
 #define LED_PIN 13
 #define LEFT_GREEN_PIN 25 
 #define LEFT_YELLOW_PIN 50  //PCINT3 Do not change because of interrupts!
 #define RIGHT_GREEN_PIN 24
 #define RIGHT_YELLOW_PIN 51 //PCINT2 Do not change because of interrupts!
-//
+//Wheels
 #define COUNTS_PER_CPOMPLETE_REVOLUTION 693
 #define WHEEL_CIRCUMFERENCE 119 //in mm
 #define COUNT_FULL_LEFT_CIRCLE 1545 
@@ -28,6 +28,12 @@
 //for interrupt
 #define cbi(sfr,bit) (_SFR_BYTE(sfr)&= ~_BV(bit)) //clear bit in byte at sfr adress
 #define sbi(sfr,bit) (_SFR_BYTE(sfr)|= _BV(bit)) //Set bit in byte at sfr adress
+
+//PINS Distance Sensors
+#define RIGHT_DISTANCE_SENSOR 7
+#define LEFT_DISTANCE_SENSOR 8
+#define RIGHTFRONT_DISTANCE_SENSOR 9
+#define LEFTFRONT_DISTANCE_SENSOR 10
 
 
 ZumoMotors motors;
@@ -596,7 +602,7 @@ void driverOverBridge()
 	//rechter Sensor A13
 	//linker Sensor A14
 	const int MAX_SPEED = 100; //Das Programm ist für diesen Speed ausgelegt
-	int speedDifference = ((2241.2*pow(analogRead(13), -0.96) - 1) - (2241.2*pow(analogRead(14), -0.96) - 1)) * 20;
+	int speedDifference = (distanceNormalSensor(LEFT_DISTANCE_SENSOR) - distanceNormalSensor(RIGHT_DISTANCE_SENSOR)) * 20;
 	int m1Speed = MAX_SPEED + speedDifference;
 	int m2Speed = MAX_SPEED - speedDifference;
 	motors.setSpeeds(m1Speed, m2Speed); 
@@ -620,15 +626,9 @@ void readNFCTag()
 //Distance Sensors
 
 ///Formel für Sharp Sensor in cm GP2Y0A41 (4-30cm)
-double distanceNormalSensor()
+double distanceNormalSensor(int analogPinOfSensor)
 {
-	int right = 7;
-	int left = 8;
-	int frontRight = 9;
-	int frontLeft = 10;
-
-	int analogSensorPin = frontLeft;
-	return 2241.2*pow(analogRead(analogSensorPin), -0.96) - 1;
+	return 2241.2*pow(analogRead(analogPinOfSensor), -0.96) - 1;
 }
 /// SHARP GP2Y0A51SK0F (2 - 15cm)
 double distanceSensorShort()
