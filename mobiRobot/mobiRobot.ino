@@ -161,7 +161,8 @@ void setup()
 void loop()
 {
 	driveOnLine();
-	
+
+
 	//unsigned int sensors[5];
 	//reflectanceSensors.read(sensors); //Sensoren werden ausgelesen
 
@@ -185,78 +186,31 @@ void loop()
 	//lcd.print(line);
 	//delay(2000);
 
-	//if (Prog_START)
-	//{
-	//	lcd.clear();
-	//	lcd.setCursor(0, 0);
-	//	lcd.print("start");
-	//	//////////
+	if (Prog_START)
+	{
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("start");
+		//////////
 
 
-	//	/*driveToStraightBridge();
+		driveToStraightBridge();
+		driveOverStraightBridge();
 
-	//	lcd.clear();
-	//	lcd.setCursor(0, 0);
-	//	lcd.print("check bridge");
-	//	delay(1000);*/
-	//	bool stillOnLine = true;
-	//	bool bridgeFree = distanceSensorShort() > 6;
-	//	int i = 0;
-	//	while (bridgeFree && stillOnLine)
-	//	{
-	//		if (i == 0)
-	//		{
-	//			lcd.clear();
-	//			lcd.setCursor(0, 0);
-	//			lcd.print("first while loop");
-	//		}
-	//		driveOnLine();
-	//		stillOnLine = lineDetected();
-	//		bridgeFree = distanceSensorShort() > 6;
-	//		i++;
-
-	//	}
-	//	lcd.clear();
-	//	lcd.setCursor(0, 0);
-	//	lcd.print("out of while");
-	//	motors.setSpeeds(0, 0);
-	//	if (!bridgeFree)
-	//	{
-	//		lcd.clear();
-	//		lcd.setCursor(0, 0);
-	//		lcd.print("bridge is blocked");
-	//	}
-	//	else
-	//	{
-	//		if (!stillOnLine)
-	//		{
-	//			lcd.clear();
-	//			lcd.setCursor(0, 0);
-	//			lcd.print("bridge end");
-	//		}
-	//		else
-	//		{
-
-	//			lcd.clear();
-	//			lcd.setCursor(0, 0);
-	//			lcd.print("wtf??");
-	//		}
-	//	}
-	//	delay(2000);
-	//	///////////
-	//	lcd.clear();
-	//	lcd.setCursor(0, 0);
-	//	lcd.print("end loop");
-	//	delay(1500);
-	//}
-	//else
-	//{
-	//	motors.setSpeeds(0, 0);
-	//	lcd.clear();
-	//	lcd.setCursor(0, 0);
-	//	lcd.print("Wait");
-	//	delay(500);
-	//}
+		///////////
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("end loop");
+		delay(1500);
+	}
+	else
+	{
+		motors.setSpeeds(0, 0);
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("Wait");
+		delay(500);
+	}
 
 }
 
@@ -268,7 +222,7 @@ void driveToStraightBridge()
 	turnLeft(30);
 	driveDistance(450);
 	turnRight(30);
-	driveDistance(150);
+	driveDistance(200);
 	//start looking for line
 	while (!lineDetected())
 	{
@@ -282,22 +236,60 @@ void driveToStraightBridge()
 	delay(2000);
 }
 
-void driveOverStraightBridge()
+bool driveOverStraightBridge()
 {
-	bool stillOnLine = true;
-	while (stillOnLine)
-	{
-		driveOnLine();
-		stillOnLine = lineDetected();
-	}
-	motors.setSpeeds(0, 0);
 	lcd.clear();
 	lcd.setCursor(0, 0);
-	lcd.print("Bridge end");
+	lcd.print("check bridge");
+	delay(1000);
+	bool stillOnLine = true;
+	bool bridgeFree = distanceSensorShort() > 6;
+	int i = 0;
+	while (bridgeFree && stillOnLine)
+	{
+		if (i == 0)
+		{
+			lcd.clear();
+			lcd.setCursor(0, 0);
+			lcd.print("first while loop");
+		}
+		driveOnLine();
+		stillOnLine = lineDetected();
+		bridgeFree = distanceSensorShort() > 6;
+		i++;
+
+	}
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("out of while");
+	motors.setSpeeds(0, 0);
+	if (!bridgeFree)
+	{
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("bridge is blocked");
+		return false;
+	}
+	else
+	{
+		if (!stillOnLine)
+		{
+			lcd.clear();
+			lcd.setCursor(0, 0);
+			lcd.print("bridge end");
+			return true;
+		}
+		else
+		{
+
+			lcd.clear();
+			lcd.setCursor(0, 0);
+			lcd.print("wtf??");
+			return true; //not sure how this state should be handled. shoudl not be possible. never happend
+		}
+	}
 	delay(2000);
-
 }
-
 
 void driveToBridge1()
 {
@@ -624,7 +616,6 @@ void driveOnLine()
 	reflectanceSensors.read(sensors); //Sensoren werden ausgelesen
 
 	int speedDifference = lineposition(sensors);
-	Serial.println(speedDifference);
 	int m1Speed = MAX_SPEED - speedDifference;
 	int m2Speed = MAX_SPEED + speedDifference;
 	motors.setSpeeds(m1Speed, m2Speed); //negative Geschwindigkeit für Vorwärts
@@ -749,15 +740,30 @@ int getDistanceForCounts(int counts)
 }
 
 int lineposition(unsigned int sensors[5]) {
+
 	int Position = 0;
-	if (sensors[1] > threshold) { Position += 40; }
-	else { Position -= 40; };
-	if (sensors[2] > threshold) { Position += 20; }
-	else { Position -= 10; };
-	if (sensors[3] > threshold) { Position -= 20; }
-	else { Position += 20; };
-	if (sensors[4] > threshold) { Position -= 40; }
-	else { Position += 40; };
+
+	int SensorsOn = 0;
+
+	if (sensors[1] > threshold)
+	{
+		Position += 80;
+		++SensorsOn;
+	};
+	if (sensors[2] > threshold)
+	{
+		Position += 40;
+		++SensorsOn;
+	};
+	if (sensors[3] > threshold) {
+		Position -= 40;
+		++SensorsOn;
+	};
+	if (sensors[4] > threshold) {
+		Position -= 80;
+		++SensorsOn;
+	};
+	Position = Position / SensorsOn;
 	return Position;
 }
 
