@@ -121,7 +121,7 @@ void setup()
 	lcd.init();
 
 	//set LED pin
-	pinMode(LED_PIN, OUTPUT);
+	//pinMode(LED_PIN, OUTPUT);
 	//set encoder pins
 	//left
 	pinMode(LEFT_GREEN_PIN, INPUT);
@@ -158,6 +158,7 @@ void setup()
 	nfc.begin();
 }
 
+int programmState = 0;
 void loop()
 {
 
@@ -191,8 +192,7 @@ void loop()
 		lcd.setCursor(0, 0);
 		lcd.print("start");
 		//////////
-
-
+		
 		driveToStraightBridge();
 		bool crossedBridge = driveOverStraightBridge();
 		if (crossedBridge)
@@ -237,10 +237,11 @@ void driveToStraightBridge()
 	turnRight(30);
 	driveDistance(250);
 	//start looking for line
-	while (!lineDetected())
-	{
-		driveDistance(10);
-	}
+	//while (!lineDetected())
+	//{
+	//	
+	//	driveDistance(10);                      <------ THIS SHIT. Caused problems. I dont know why yet. dont use it anywhere !!
+	//}
 	motors.setSpeeds(0, 0);
 	lcd.clear();
 	lcd.setCursor(0, 0);
@@ -638,11 +639,10 @@ void initLineArray()
 
 void driveOnLine()
 {
-	unsigned int sensors[5];
-	const int MAX_SPEED = 100; //Das Programm ist für diesen Speed ausgelegt
-	reflectanceSensors.read(sensors); //Sensoren werden ausgelesen
 
-	int speedDifference = lineposition(sensors);
+	const int MAX_SPEED = 100; //Das Programm ist für diesen Speed ausgelegt
+
+	int speedDifference = lineposition();
 	int m1Speed = MAX_SPEED - speedDifference;
 	int m2Speed = MAX_SPEED + speedDifference;
 	motors.setSpeeds(m1Speed, m2Speed); //negative Geschwindigkeit für Vorwärts
@@ -766,8 +766,10 @@ int getDistanceForCounts(int counts)
 	return returnWert;
 }
 
-int lineposition(unsigned int sensors[5]) {
+int lineposition() {
 
+	unsigned int sensors[5];
+	reflectanceSensors.read(sensors);
 	int Position = 0;
 	int SensorsOn = 0;
 
