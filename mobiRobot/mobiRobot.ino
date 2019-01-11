@@ -160,8 +160,6 @@ void setup()
 
 void loop()
 {
-	driveOnLine();
-
 
 	//unsigned int sensors[5];
 	//reflectanceSensors.read(sensors); //Sensoren werden ausgelesen
@@ -186,6 +184,7 @@ void loop()
 	//lcd.print(line);
 	//delay(2000);
 
+
 	if (Prog_START)
 	{
 		lcd.clear();
@@ -195,9 +194,23 @@ void loop()
 
 
 		driveToStraightBridge();
-		driveOverStraightBridge();
+		bool crossedBridge = driveOverStraightBridge();
+		if (crossedBridge)
+		{
+			readFirstNFCTag();
+			lcd.clear();
+			lcd.setCursor(0, 0);
+			lcd.print("read Tag");
+		}
+		else
+		{
+			lcd.clear();
+			lcd.setCursor(0, 0);
+			lcd.print("go to other bridge");
+		}
+		delay(2000);
 
-		///////////
+		/////////////
 		lcd.clear();
 		lcd.setCursor(0, 0);
 		lcd.print("end loop");
@@ -222,7 +235,7 @@ void driveToStraightBridge()
 	turnLeft(30);
 	driveDistance(450);
 	turnRight(30);
-	driveDistance(200);
+	driveDistance(250);
 	//start looking for line
 	while (!lineDetected())
 	{
@@ -244,31 +257,31 @@ bool driveOverStraightBridge()
 	delay(1000);
 	bool stillOnLine = true;
 	bool bridgeFree = distanceSensorShort() > 6;
-	int i = 0;
+	//int i = 0;
 	while (bridgeFree && stillOnLine)
 	{
-		if (i == 0)
+		/*if (i == 0)
 		{
 			lcd.clear();
 			lcd.setCursor(0, 0);
 			lcd.print("first while loop");
-		}
+		}*/
 		driveOnLine();
 		stillOnLine = lineDetected();
 		bridgeFree = distanceSensorShort() > 6;
-		i++;
+		//i++;
 
 	}
 	lcd.clear();
 	lcd.setCursor(0, 0);
 	lcd.print("out of while");
 	motors.setSpeeds(0, 0);
+	bool isBridgeCrossed = false;
 	if (!bridgeFree)
 	{
 		lcd.clear();
 		lcd.setCursor(0, 0);
 		lcd.print("bridge is blocked");
-		return false;
 	}
 	else
 	{
@@ -277,7 +290,7 @@ bool driveOverStraightBridge()
 			lcd.clear();
 			lcd.setCursor(0, 0);
 			lcd.print("bridge end");
-			return true;
+			isBridgeCrossed = true;
 		}
 		else
 		{
@@ -285,10 +298,23 @@ bool driveOverStraightBridge()
 			lcd.clear();
 			lcd.setCursor(0, 0);
 			lcd.print("wtf??");
-			return true; //not sure how this state should be handled. shoudl not be possible. never happend
+			isBridgeCrossed = true; //not sure how this state should be handled. shoudl not be possible. never happend
 		}
 	}
 	delay(2000);
+	return isBridgeCrossed;
+}
+
+void readFirstNFCTag()
+{
+	driveDistance(50);
+	bool tagRead = false;
+	while (!tagRead)
+	{
+		driveDistance(10);
+		tagRead = readNFCTag();
+	}
+	delay(4000);
 }
 
 void driveToBridge1()
@@ -547,6 +573,7 @@ int getCountsForDistance(int distanceInMM)
 
 void Pushbutton_change() {
 	Prog_START = !Prog_START;
+	delay(10);
 	//not right yet. Button is not debounced yet
 }
 
@@ -742,7 +769,6 @@ int getDistanceForCounts(int counts)
 int lineposition(unsigned int sensors[5]) {
 
 	int Position = 0;
-
 	int SensorsOn = 0;
 
 	if (sensors[1] > threshold)
@@ -763,7 +789,7 @@ int lineposition(unsigned int sensors[5]) {
 		Position -= 80;
 		++SensorsOn;
 	};
-	Position = Position / SensorsOn;
+	Position = Position / SensorsOn; 
 	return Position;
 }
 
@@ -793,16 +819,19 @@ void driverOverBridge()
 
 //////////////////////
 //NFC tag
-void readNFCTag()
+bool readNFCTag()
 {
+
 	if (nfc.tagPresent()) {
 		NfcTag tag = nfc.read();
+		String text = tag.getNdefMessage().getRecord(0).getText();
+		String rightSizeText = text.substring(0, 16);
 		lcd.clear();
 		lcd.setCursor(0, 0);
-		lcd.print(tag.getNdefMessage().getRecord(0).getText());
+		lcd.print(rightSizeText);
+		return true;
 	}
-	delay(4000);
-	lcd.clear();
+	return false;
 }
 
 /////////////////////
