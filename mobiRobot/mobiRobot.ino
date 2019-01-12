@@ -4,15 +4,20 @@
  Author:	delia
 */
 
+
 #include <Wire.h>
 #include <PN532_I2C.h>
 #include <PN532.h>
 #include <NfcAdapter.h>
 #include <DFRobot_LCD.h>
 #include <ZumoShield.h>
+#include <IR_Thermometer_Sensor_MLX90614.h>
 
 //Startbutton
 #define PUSHBUTTON 19
+
+//MAGNET
+#define MAGNET_ANALOG A11
 
 //PINS Encoder
 #define LED_PIN 13
@@ -35,16 +40,23 @@
 #define RIGHTFRONT_DISTANCE_SENSOR 9
 #define LEFTFRONT_DISTANCE_SENSOR 10
 
+//MorseSensor
+#define DIGITAL_IR_SENSOR 23
+
+
 
 ZumoMotors motors;
 DFRobot_LCD lcd(16, 2);  //16 characters and 2 lines of show
 ZumoBuzzer buzzer;
 ZumoReflectanceSensorArray reflectanceSensors;
 Pushbutton button(ZUMO_BUTTON);
-
 PN532_I2C pn532_i2c(Wire);
 NfcAdapter nfc = NfcAdapter(pn532_i2c);
+IR_Thermometer_Sensor_MLX90614 Temperatursensor = IR_Thermometer_Sensor_MLX90614();
 
+
+//Programm general
+const int generalMotorSpeed = 100;
 //Encoder
 volatile int leftReadingAPhase = LOW;
 volatile int leftReadingAPhaseOld = LOW;
@@ -102,6 +114,7 @@ char morse_strings[37][6] = {
  "--...",
  "---..",
  "----.", };
+//Line
 const int threshold = 700;
 
 
@@ -120,8 +133,6 @@ void setup()
 
 	lcd.init();
 
-	//set LED pin
-	//pinMode(LED_PIN, OUTPUT);
 	//set encoder pins
 	//left
 	pinMode(LEFT_GREEN_PIN, INPUT);
@@ -131,9 +142,6 @@ void setup()
 	pinMode(RIGHT_YELLOW_PIN, INPUT);
 
 	//Initialize interupts
-	//attachInterrupt(digitalPinToInterrupt(LEFT_YELLOW_PIN), leftEncoder, CHANGE);
-	//attachInterrupt(digitalPinToInterrupt(RIGHT_YELLOW_PIN), rightEncoder, CHANGE);
-	// ISCn1=0 und ISCn0=1 is for CHANGE
 	oldPortB = PINB;
 	digitalWrite(LEFT_YELLOW_PIN, HIGH);
 	digitalWrite(RIGHT_YELLOW_PIN, HIGH);
@@ -150,12 +158,16 @@ void setup()
 
 	//line array
 	initLineArray();
-	lcd.clear();
-	lcd.setCursor(0, 0);
-	lcd.print("ready to start");
 
 	//NFC
 	nfc.begin();
+
+	//Temperatur
+	Temperatursensor.begin();
+
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("ready to start");
 }
 
 int programmState = 0;
@@ -192,7 +204,7 @@ void loop()
 		lcd.setCursor(0, 0);
 		lcd.print("start");
 		//////////
-		
+
 		driveToStraightBridge();
 		bool crossedBridge = driveOverStraightBridge();
 		if (crossedBridge)
@@ -201,12 +213,28 @@ void loop()
 			lcd.clear();
 			lcd.setCursor(0, 0);
 			lcd.print("read Tag");
+			//Luca new 
+			lcd.clear();
+			lcd.setCursor(0, 0);
+			lcd.print("Magnet drive");
+			delay(1000);
+			driveToMagnet1();
+			lcd.clear();
+			lcd.setCursor(0, 0);
+			lcd.print("Magnet measure");
+			delay(1000);
+			Magnetfeld();
+			delay(1000);
+			driveToHeat1();
+			Waerme();
 		}
 		else
 		{
 			lcd.clear();
 			lcd.setCursor(0, 0);
 			lcd.print("go to other bridge");
+			driveOverOtherBridge();
+			strategyOtherBridge();
 		}
 		delay(2000);
 
@@ -222,13 +250,15 @@ void loop()
 		lcd.clear();
 		lcd.setCursor(0, 0);
 		lcd.print("Wait");
-		delay(500);
+		delay(800);
 	}
 
 }
 
 /////////////////////////////
 // modules
+
+
 
 void driveToStraightBridge()
 {
@@ -306,6 +336,88 @@ bool driveOverStraightBridge()
 	return isBridgeCrossed;
 }
 
+void driveOverOtherBridge()
+{
+	bool stillOnLine = true;
+	turnRight(85);
+	driveDistance(480); //drive to Other Bridge
+	while (stillOnLine) //Should see the line and follow it
+	{
+
+		driveOnLine();
+		stillOnLine = lineDetected();
+
+	}
+	while (!stillOnLine) { //when line endet up, follow the Bridgebunches until sees next line 
+		driverOverBridge();
+		stillOnLine = lineDetected();
+	}
+	while (stillOnLine) //follow the line until end
+	{
+
+		driveOnLine();
+		stillOnLine = lineDetected();
+	}
+	readFirstNFCTag(); //Read the NFC Tag !!!!Caution NFC Tag is broken ->no Output
+
+
+}
+
+void strategyOtherBridge() {
+
+	//ab nfc tag from other side, geschwungene brücke
+	turnRight(90);
+	driveDistance(90);
+	Waerme();
+	turnLeft(10);
+	driveDistance(280);
+	turnLeft(80);
+	while (distanceNormalSensor(LEFTFRONT_DISTANCE_SENSOR) > 17) { driveronRightSensor(6); } //der Bande entlang fahren mit 6cm Abstand bis NFC TAg
+	readFirstNFCTag();
+	turnLeft(100);
+	driveDistance(90);
+	Magnetfeld();
+	turnLeft(90);
+	NeunziggradaufLinefahren();
+	bool wayfree = true;  //Gestrichelte Linie wurde angefahren und wird nun gefolgt bis poller abstand 6cm.
+	while (wayfree)
+	{
+		driveOnLine();
+		wayfree = distanceSensorShort() > 6;
+
+	}
+	turnRight(43);
+	driveDistance(310);
+	Waerme();
+	driveDistance(80);
+	turnLeft(47);
+	driveDistance(10);
+	Magnetfeld();
+	turnLeft(90);
+	NeunziggradaufLinefahren();
+	wayfree = true;
+
+	//Bande erkennen
+	/*while (wayfree) { driveOnLine();
+	wayfree = distanceNormalSensor(LEFTFRONT_DISTANCE_SENSOR) > 14; //verdammte scheiss while loop goht nid
+	}
+*/
+
+
+/*turnLeft(90);
+driveDistance(150);
+readFirstNFCTag();*/
+//bool stillOnLine = true;
+//while (stillOnLine) //Should see the line and follow it
+//{
+
+//	driveOnLine();
+//	stillOnLine = lineDetected();
+
+//}
+
+}
+
 void readFirstNFCTag()
 {
 	driveDistance(50);
@@ -318,68 +430,18 @@ void readFirstNFCTag()
 	delay(4000);
 }
 
-void driveToBridge1()
-{
-	turnRight(30);
-	driveDistance(250);
-	turnLeft(30);
-	driveDistance(200);
-	//start looking for line
-	while (!lineDetected())
-	{
-		driveDistance(10);
-	}
-
-	lcd.clear();
-	lcd.setCursor(0, 0);
-	lcd.print("line detected");
-
-	delay(2000);
+void driveToMagnet1() {
+	driveDistance(150);
+	turnRight(10);
+	driveDistance(105);
 }
 
-void driveOnBridge1()
-{
-	//does not work anymore. has a problem with the line sensor. goes directly into bridge open
-
-	bool stillOnLine = true;
-	int i = 0;
-	while ((distanceSensorShort() > 6) && stillOnLine)
-	{
-		driveOnLine();
-		stillOnLine = lineDetected();
-		if (i % 20)
-		{
-			lcd.clear();
-			lcd.setCursor(0, 0);
-			lcd.print(stillOnLine);
-		}
-		i++;
-
-	}
-	if (stillOnLine)
-	{
-		motors.setSpeeds(0, 0);
-		lcd.clear();
-		lcd.setCursor(0, 0);
-		lcd.print("road blocked");
-		delay(2000);
-	}
-	else
-	{
-		//ready for bridge	
-		lcd.clear();
-		lcd.setCursor(0, 0);
-		lcd.print("bridge open");
-		motors.setSpeeds(0, 0);
-		delay(2000);
-		while (!lineDetected())
-		{
-			driverOverBridge();
-		}
-	}
-
-
+void driveToHeat1() {
+	driveDistanceBack(10);
+	turnRight(45);
+	driveDistance(190);
 }
+
 /////////////
 ISR(PCINT0_vect)
 {
@@ -479,8 +541,7 @@ bool turnLeft(int angle) // turn from 0-360grad
 {
 	int count = 200;// getCountsForAngle(angle);
 	resetEncoderCounters();
-	int speed = 100;
-	motors.setSpeeds(-1 * speed, speed);
+	motors.setSpeeds(-1 * generalMotorSpeed, generalMotorSpeed);
 	bool leftMotorRunning = true;
 	bool rightMotorRunning = true;
 	while (rightMotorRunning || leftMotorRunning)
@@ -514,10 +575,9 @@ bool turnLeft(int angle) // turn from 0-360grad
 
 bool turnRight(int angle) //turn from 0-360 grad
 {
-	int count = 200;//getCountsForAngle(angle);
+	int count = getCountsForAngle(angle);
 	resetEncoderCounters();
-	int speed = 100;
-	motors.setSpeeds(speed, -1 * speed);
+	motors.setSpeeds(generalMotorSpeed, -1 * generalMotorSpeed);
 	bool leftMotorRunning = true;
 	bool rightMotorRunning = true;
 	while (rightMotorRunning || leftMotorRunning)
@@ -570,12 +630,49 @@ int getCountsForDistance(int distanceInMM)
 	int roundedCount = (int)(unrounded + 0.5); //kaufmännisch gerundet
 	return roundedCount;
 }
+
+void NeunziggradaufLinefahren() {
+	bool linedetected = false;
+	while (!linedetected) {
+		motors.setSpeeds(generalMotorSpeed, generalMotorSpeed);
+		linedetected = lineDetected();
+	}
+	motors.setSpeeds(0, 0);
+	driveDistance(30);
+	turnRight(90);
+}
+
+void driveDistanceBack(int distanceInMM)
+{
+	int count = getCountsForDistance(-distanceInMM);
+	resetEncoderCounters();
+	motors.setSpeeds(-100, -100);
+	bool leftMotorRunning = true;
+	bool rightMotorRunning = true;
+	while (rightMotorRunning || leftMotorRunning) //both motors need to be stopped to continue
+	{
+		cli();
+		bool reachedRightLimit = rightEncoderValue <= count;
+		bool reachedLeftLimit = leftEncoderValue <= count;
+		sei();
+		if (reachedRightLimit)
+		{
+			motors.setRightSpeed(0);
+			rightMotorRunning = false;
+		}
+		if (reachedLeftLimit)
+		{
+			motors.setLeftSpeed(0);
+			leftMotorRunning = false;
+		}
+	}
+	resetEncoderCounters();
+}
 ///////////////////////////////////////
 
 void Pushbutton_change() {
 	Prog_START = !Prog_START;
 	delay(10);
-	//not right yet. Button is not debounced yet
 }
 
 void establishContact() {
@@ -639,12 +736,9 @@ void initLineArray()
 
 void driveOnLine()
 {
-
-	const int MAX_SPEED = 100; //Das Programm ist für diesen Speed ausgelegt
-
 	int speedDifference = lineposition();
-	int m1Speed = MAX_SPEED - speedDifference;
-	int m2Speed = MAX_SPEED + speedDifference;
+	int m1Speed = generalMotorSpeed - speedDifference;
+	int m2Speed = generalMotorSpeed + speedDifference;
 	motors.setSpeeds(m1Speed, m2Speed); //negative Geschwindigkeit für Vorwärts
 }
 
@@ -662,7 +756,8 @@ void readMorseCode()
 
 bool readMorse()
 {
-	motors.setSpeeds(80, 80);
+	const int specialMorseMotorSpeed = 80;
+	motors.setSpeeds(specialMorseMotorSpeed, specialMorseMotorSpeed);
 
 	int blackDistance = 0;
 	int whiteDistance = 0;
@@ -672,7 +767,6 @@ bool readMorse()
 	const int black = 2;
 	const int newLetter = 3;
 	const int wordEnd = 4;
-	const int digitalIRSensor = 23;
 
 	unsigned int sensors[5];
 	reflectanceSensors.read(sensors); //Sensoren werden ausgelesen
@@ -680,7 +774,7 @@ bool readMorse()
 
 	switch (state) {
 	case anfahren: //Anfahren
-		if (digitalRead(digitalIRSensor) == false) {
+		if (digitalRead(DIGITAL_IR_SENSOR) == false) {
 			state = black;
 			resetEncoderCounters();
 		}
@@ -691,7 +785,7 @@ bool readMorse()
 	case white: //white 
 		whiteDistance = getDistanceForCounts(rightEncoderValue);
 
-		if (digitalRead(digitalIRSensor) == true) { state = 1; digitalWrite(LED_BUILTIN, HIGH); }
+		if (digitalRead(DIGITAL_IR_SENSOR) == true) { state = 1; digitalWrite(LED_BUILTIN, HIGH); }
 		else {
 			whiteDistance = getDistanceForCounts(rightEncoderValue);
 			resetEncoderCounters();
@@ -706,7 +800,7 @@ bool readMorse()
 		break;
 
 	case black: //black 
-		if (digitalRead(digitalIRSensor) == false) { state = 2; digitalWrite(LED_BUILTIN, LOW); }
+		if (digitalRead(DIGITAL_IR_SENSOR) == false) { state = 2; digitalWrite(LED_BUILTIN, LOW); }
 		else {
 			blackDistance = getDistanceForCounts(rightEncoderValue);
 			resetEncoderCounters();
@@ -791,7 +885,7 @@ int lineposition() {
 		Position -= 80;
 		++SensorsOn;
 	};
-	Position = Position / SensorsOn; 
+	Position = Position / SensorsOn;
 	return Position;
 }
 
@@ -810,12 +904,29 @@ bool lineDetected() {
 //Banden Fahren
 void driverOverBridge()
 {
-	//rechter Sensor A13
-	//linker Sensor A14
-	const int MAX_SPEED = 100; //Das Programm ist für diesen Speed ausgelegt
 	int speedDifference = (distanceNormalSensor(RIGHT_DISTANCE_SENSOR) - distanceNormalSensor(LEFT_DISTANCE_SENSOR)) * 20;
-	int m1Speed = MAX_SPEED + speedDifference;
-	int m2Speed = MAX_SPEED - speedDifference;
+	int m1Speed = generalMotorSpeed + speedDifference;
+	int m2Speed = generalMotorSpeed - speedDifference;
+	motors.setSpeeds(m1Speed, m2Speed);
+}
+
+void driveronRightSensor(int Distance)
+{
+	int distancebefore = distanceNormalSensor(RIGHT_DISTANCE_SENSOR);
+	int speedDifference = (Distance - distanceNormalSensor(RIGHT_DISTANCE_SENSOR)) * 15;
+	if (speedDifference > 40) { speedDifference = 40; }
+	if (speedDifference < -40) { speedDifference = -40; }
+
+
+
+	lcd.print(speedDifference);
+	lcd.clear();
+
+
+
+
+	int m1Speed = generalMotorSpeed - speedDifference;
+	int m2Speed = generalMotorSpeed + speedDifference;
 	motors.setSpeeds(m1Speed, m2Speed);
 }
 
@@ -823,7 +934,6 @@ void driverOverBridge()
 //NFC tag
 bool readNFCTag()
 {
-
 	if (nfc.tagPresent()) {
 		NfcTag tag = nfc.read();
 		String text = tag.getNdefMessage().getRecord(0).getText();
@@ -849,4 +959,93 @@ double distanceSensorShort()
 {
 	int analogSensorPin = 6;
 	return (783.35*pow(analogRead(analogSensorPin), -0.841)*0.8 - 1.8);
+}
+
+///////////////
+//Heat
+
+void Waerme() {
+	long median;
+	float ob_temp[5];
+	for (int i = 0; i < 5; i++) {
+		ob_temp[i] = Objekt_Temp();
+	}
+	median = getMedian(5, ob_temp);
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("Temperatur");
+	lcd.setCursor(0, 1);
+	lcd.print(median);
+	lcd.print("C");
+	delay(2000);
+}
+
+
+float Objekt_Temp() {
+	return Temperatursensor.GetObjectTemp_Celsius();
+}
+float Umgeb_Temp() {
+	return Temperatursensor.GetAmbientTemp_Celsius();
+}
+
+////////////////////
+//Magnet
+void Magnetfeld() {
+	long median;
+	double d[5];
+	float a[5];
+
+	//const int underLimitStrongMagnet = 504;
+	//const int upperLimitStrongMagnet = 528;
+
+	for (int i = 0; i < 5; ++i) { // Messung analog (5x in halber Sekunde)
+		a[i] = analogRead(MAGNET_ANALOG); // *5.0 / 1023.0;
+		delay(100);
+	}
+
+	median = getMedian(5, a); // Median der 5 Werte
+
+	if (514 < median && median < 518) {
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("kein Magnet");
+	}
+	else {
+
+		if (median < 504 || median > 528) { //ursprünglich 502 und 530
+			lcd.clear();
+			lcd.setCursor(0, 0);
+			lcd.print("starkes Magnet");
+		}
+		else {
+			lcd.clear();
+			lcd.setCursor(0, 0);
+			lcd.print("schwaches Magnet");
+		}
+	}
+	delay(2000);
+}
+
+
+float getMedian(int n, float x[]) { // Medianwert bestimmen
+	float temp;
+	int i, j;
+
+	// Sortierung des Arrays von grösstem zu kleinstem Wert
+	for (i = 0; i < n - 1; i++) {
+		for (j = i + 1; j < n; j++) {
+			if (x[j] < x[i]) { // swap elements
+				temp = x[i];
+				x[i] = x[j];
+				x[j] = temp;
+			}
+		}
+	}
+	// Ausgabe Medianwert
+	if (n % 2 == 0) {
+		return ((x[n / 2 - 1] + x[n / 2]) / 2);
+	}
+	else {
+		return (x[n / 2 + (n % 2) / 2]);
+	}
 }
