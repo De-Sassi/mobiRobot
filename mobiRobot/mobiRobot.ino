@@ -5,6 +5,7 @@
 */
 
 
+//#include <SharpDistSensor.h>
 #include <Wire.h>
 #include <PN532_I2C.h>
 #include <PN532.h>
@@ -40,6 +41,13 @@
 #define RIGHTFRONT_DISTANCE_SENSOR 9
 #define LEFTFRONT_DISTANCE_SENSOR 10
 
+////PIN DistanceSensors with library
+//#define RIGHT_DISTANCE_SENSOR_A A7
+//#define LEFT_DISTANCE_SENSOR_A A8
+//#define RIGHTFRONT_DISTANCE_SENSOR_A A9
+//#define LEFTFRONT_DISTANCE_SENSOR_A A10
+//#define SHORT_SENSOR_A A6
+
 //MorseSensor
 #define DIGITAL_IR_SENSOR 23
 
@@ -48,7 +56,7 @@
 #define EMITTER_PIN A4
 #define BROKEN_SENSOR0 4
 #define SENSOR1 A3
-#define SENSOR2 11
+#define SENSOR2 11  //ATTENTION! Is on interrupt vector. maybe turn off?
 #define SENSOR3 A0
 #define SENSOR4 A2
 #define NOT_USED_SENSOR5 5
@@ -61,6 +69,13 @@ Pushbutton button(ZUMO_BUTTON);
 PN532_I2C pn532_i2c(Wire);
 NfcAdapter nfc = NfcAdapter(pn532_i2c);
 IR_Thermometer_Sensor_MLX90614 Temperatursensor = IR_Thermometer_Sensor_MLX90614();
+
+
+//SharpDistSensor rightSensor(RIGHT_DISTANCE_SENSOR_A );
+//SharpDistSensor leftSensor(LEFT_DISTANCE_SENSOR_A);
+//SharpDistSensor frontRightSensor(RIGHTFRONT_DISTANCE_SENSOR_A);
+//SharpDistSensor frontLeftSensor(LEFTFRONT_DISTANCE_SENSOR_A);
+//SharpDistSensor shortSensor(SHORT_SENSOR_A);
 
 
 //Programm general
@@ -173,6 +188,13 @@ void setup()
 	//Temperatur
 	Temperatursensor.begin();
 
+	////Sharp Sensors
+	//rightSensor.setModel(rightSensor.GP2Y0A41SK0F_5V_DS);
+	//leftSensor.setModel(leftSensor.GP2Y0A41SK0F_5V_DS);
+	//frontRightSensor.setModel(frontRightSensor.GP2Y0A41SK0F_5V_DS);
+	//frontLeftSensor.setModel(frontLeftSensor.GP2Y0A41SK0F_5V_DS);;
+	//shortSensor.setModel(shortSensor.GP2Y0A51SK0F_5V_DS);
+
 	lcd.clear();
 	lcd.setCursor(0, 0);
 	lcd.print("ready to start");
@@ -181,7 +203,8 @@ void setup()
 
 void loop()
 {
-
+	
+	//driveOnLine();
 	//unsigned int sensors[5];
 	//reflectanceSensors.read(sensors); //Sensoren werden ausgelesen
 
@@ -213,32 +236,53 @@ void loop()
 		lcd.print("start");
 		//////////
 
-		//driveToStraightBridge();
-		//bool crossedBridge = driveOverStraightBridge();
-		//if (crossedBridge)
-		//{
-		//	readFirstNFCTag();
-		//	lcd.clear();
-		//	lcd.setCursor(0, 0);
-		//	lcd.print("read Tag");
-		//	//Luca new 
-		//	driveToMagnet1AfterStraightBridge();
-		//	lcd.clear();
-		//	lcd.setCursor(0, 0);
-		//	lcd.print("Magnet measure");
-		//	delay(1000);
-		//	measureMagnetfield();
-		//	delay(1000);
-		//	driveToHeat1StraightBridge();
-		//}
-		//else
-		//{
-		//	lcd.clear();
-		//	lcd.setCursor(0, 0);
-		//	lcd.print("go to other bridge");
-		//	driveOverOtherBridge();
-			strategySecondBridge();
-	/*	}*/
+		driveToFirstBridge();
+		bool crossedBridge = driveOverFirstBridge();
+		if (crossedBridge)
+		{
+			driveDistanceBack(170);
+			turnRight(90);
+			driveDistance(420);
+			turnLeft(90);
+			bool stillOnLine = true;
+			while (stillOnLine) //follow the line until end
+			{
+
+				driveOnLine();
+				stillOnLine = lineDetected();
+			}
+			motors.setSpeeds(0, 0);
+
+			/*	firstNFCTag_FirstBridge();
+				lcd.clear();
+				lcd.setCursor(0, 0);
+				lcd.print("read Tag");
+
+				driveToMagnet1_FirstBridge();
+				lcd.clear();
+				lcd.setCursor(0, 0);
+				lcd.print("Magnet measure");
+				delay(1000);
+				measureMagnetfield();
+				delay(1000);*/
+				//driveToHeat1StraightBridge();
+		}
+		else
+		{
+			lcd.clear();
+			lcd.setCursor(0, 0);
+			lcd.print("go to other bridge");
+			turnRight(85);
+			driveDistance(500); //drive to Other Bridge
+			driveOverSecondBridge();
+			/*strategySecondBridge();*/
+		}
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("start strategy");
+		delay(2000);
+		strategySecondBridge(crossedBridge);
+
 		delay(2000);
 
 		/////////////
@@ -262,13 +306,6 @@ void loop()
 // modules
 
 
-
-
-
-
-
-
-
 void driveToHeat1StraightBridge() {
 	driveDistanceBack(10);
 	turnRight(50);
@@ -279,10 +316,10 @@ void driveToHeat1StraightBridge() {
 //////////
 //crossed over second bridge
 
-void strategySecondBridge() {
+void strategySecondBridge(bool firstBridgeCrossed) {
 
-	//ab nfc tag from other side, geschwungene brücke
-
+	//ab nfc tag 1
+	firstNFCTag();
 	//read first temp
 	lcd.clear();
 	lcd.setCursor(0, 0);
@@ -296,30 +333,29 @@ void strategySecondBridge() {
 	lcd.setCursor(0, 0);
 	lcd.print("Go to NFC-Tag");
 	turnLeft(10);
-	driveDistance(280);
+	driveDistance(270);
 	turnLeft(80);
 	while (distanceNormalSensor(LEFTFRONT_DISTANCE_SENSOR) > 17)
 	{
 		driveOnRightSensorWithDistance(6);
 	} //der Bande entlang fahren mit 6cm Abstand bis NFC TAg
-	firstNFCTag_FirstBridge();
+	firstNFCTag();
 
 	//go to magnet field
 	lcd.clear();
 	lcd.setCursor(0, 0);
 	lcd.print("Find Magnet 1");
 	turnLeft(100);
-	driveDistance(130);
-	driveDistance(40);
+	driveIntoPillar();
 	measureMagnetfield();
-	driveDistanceBack(30);
+	driveDistanceBack(40);
 
 	//read secondTemp
 	lcd.clear();
 	lcd.setCursor(0, 0);
 	lcd.print("Find Fire");
 	turnLeft(90);
-	NeunziggradaufLinefahren();
+	NeunziggradaufLinefahrenRight();
 	bool wayfree = true;  //Gestrichelte Linie wurde angefahren und wird nun gefolgt bis poller abstand 6cm.
 	while (wayfree)
 	{
@@ -327,7 +363,7 @@ void strategySecondBridge() {
 		wayfree = distanceSensorShort() > 6;
 
 	}
-	turnRight(43);
+	turnRight(45);
 	driveDistance(310);
 	readTemperature();
 
@@ -336,37 +372,84 @@ void strategySecondBridge() {
 	lcd.setCursor(0, 0);
 	lcd.print("Find Magnet 2");
 	driveDistance(80);
-	turnLeft(47);
-	driveDistance(40);
+	turnLeft(45);
+	driveIntoPillar();
 	measureMagnetfield();
 	driveDistanceBack(40);
 
 	//read third nfc
 	turnLeft(90);
-	NeunziggradaufLinefahren();
+	NeunziggradaufLinefahrenRight();
+
+
 	//Bande erkennen
 	wayfree = true;
 	while (wayfree) {
 		driveOnLine();
-		wayfree = distanceNormalSensor(LEFTFRONT_DISTANCE_SENSOR) > 14; //verdammte scheiss while loop goht nid
+		//wayfree = frontLeftSensor.getDist() > 140;
+		wayfree = distanceNormalSensor(LEFTFRONT_DISTANCE_SENSOR) > 14;
+		//delay(50);
 	}
 	turnLeft(90);
 	driveDistance(50);
-	while (lineDetected())
+	bool lineFound = false;
+	motors.setSpeeds(generalMotorSpeed, generalMotorSpeed);
+	while (!lineFound)
 	{
-		driveOnRightSensorWithDistance(6);
+		driveOnRightSensorWithDistance(22);
+		lineFound = lineDetected();
+		delay(50);
 	}
 	motors.setSpeeds(0, 0);
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("reached Bridge line");
+	delay(1000);
+
+	//drives forward to be right on line
+	resetEncoderCounters();
+	while (leftEncoderValue < 580)
+	{
+		driveOnLine();
+	}
+	driveDistanceBack(100);
+
+
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("read Tag");
 	bool tagRead = false;
 	while (!tagRead)
 	{
-		driveDistance(10);
+		driveDistanceBack(10);
 		tagRead = readNFCTag();
 	}
 	delay(4000);
 
-	//cross bridge
 	driveDistance(50);
+	if (firstBridgeCrossed)
+	{
+		/*GoBack to second bridge*/
+		driveDistance(180);
+		turnLeft(90);
+		driveDistance(480);
+		//Travel bridge
+		driveOverSecondBridge();
+		//go to first bridge
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("go to bridge one");
+		delay(4000);
+		driveDistanceBack(80);
+		turnRight(90);
+		driveDistance(450);
+		NeunziggradaufLinefahrenLeft();
+
+
+	}
+
+	/*cross bridge*/
+
 	bool stillOnLine = true;
 	while (stillOnLine) //Should see the line and follow it
 	{
@@ -379,15 +462,114 @@ void strategySecondBridge() {
 	lcd.clear();
 	lcd.setCursor(0, 0);
 	lcd.print("end straight bridge");
+	delay(1000);
+
+	//go to first morse code
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("drive to morse");
+	turnRight(90);
+	motors.setSpeeds(generalMotorSpeed, generalMotorSpeed);
+	while (distanceSensorShort() > 3)
+	{
+		delay(100);
+	}
+	turnLeft(90);
+	delay(1000);
+	while (!lineDetected())
+	{
+		driveOnRightSensorWithDistance(7);
+	}
+	motors.setSpeeds(0, 0);
+	driveDistance(110);
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("read Morsecode");
+	readMorseCode();
+
+	////drive to 3 temp
+	driveDistance(50);
+	turnLeft(90);
+	while (!lineDetected())
+	{
+		driveOnRightSensorWithDistance(10);
+	}
+	driveDistance(50);
+	turnLeft(90);
+	driveDistance(80);
+	motors.setSpeeds(0, 0);
+	turnRight(90);
+	int ticks = getCountsForDistance(100);
+	resetEncoderCounters();
+	while (leftEncoderValue < ticks)
+	{
+		driveOnLine();
+	}
+	motors.setSpeeds(0, 0);
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("edge");
+	turnLeft(45);
+	driveDistance(180);
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("read temp");
 	delay(2000);
+	lcd.clear();
+	readTemperature();
+
+	//next morse
+	turnLeft(45);
+	NeunziggradaufLinefahrenRight();
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("on line");
+	while (distanceNormalSensor(RIGHTFRONT_DISTANCE_SENSOR) > 6)
+	{
+		driveOnLine();
+	}
+	motors.setSpeeds(0, 0);
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("border");
+	delay(1000);
+	turnRight(180);
+	driveDistanceBack(80);
+	turnLeft(90);
+	driveDistanceBack(50);
+	int tick = getCountsForDistance(80);
+	resetEncoderCounters();
+	while (leftEncoderValue < tick)
+	{
+		driveOnLeftSensorWithDistance(5);
+	}
+
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("ready to read code");
+	delay(1000);
+	readMorseCode();
+
+	//drive to start
+	turnRight(30);
+	driveDistance(90);
+	turnRight(60);
+	driveDistance(80);
+	while (!lineDetected())
+	{
+		driveOnLeftSensorWithDistance(10);
+	}
+	motors.setSpeeds(0, 0);
+	driveDistance(100);
+	turnRight(90);
+
+
 
 }
 
 void driveOverSecondBridge()
 {
 	bool stillOnLine = true;
-	turnRight(85);
-	driveDistance(500); //drive to Other Bridge
 	lcd.clear();
 	lcd.setCursor(0, 0);
 	lcd.print("drive on line");
@@ -396,9 +578,12 @@ void driveOverSecondBridge()
 		driveOnLine();
 		stillOnLine = lineDetected();
 	}
+	motors.setSpeeds(0, 0);
 	lcd.clear();
 	lcd.setCursor(0, 0);
 	lcd.print("drive over bridge");
+	delay(2000);
+	stillOnLine = false;
 	while (!stillOnLine) { //when line endet up, follow the Bridgebunches until sees next line 
 		driverOverBridge();
 		stillOnLine = lineDetected();
@@ -412,7 +597,8 @@ void driveOverSecondBridge()
 		driveOnLine();
 		stillOnLine = lineDetected();
 	}
-	firstNFCTag_FirstBridge(); //Read the NFC Tag !!!!Caution NFC Tag is broken ->no Output
+	motors.setSpeeds(0, 0);
+	//firstNFCTag(); //Read the NFC Tag !!!!Caution NFC Tag is broken ->no Output
 
 
 }
@@ -426,7 +612,7 @@ void driveToFirstBridge()
 	lcd.setCursor(0, 0);
 	lcd.print("go to straight bridge");
 	turnLeft(45);
-	driveDistance(500);
+	driveDistance(480);
 	turnRight(45);
 	driveDistance(250);
 	delay(1000);
@@ -487,7 +673,7 @@ void driveToMagnet1_FirstBridge()
 	driveDistance(105);
 }
 
-void firstNFCTag_FirstBridge()
+void firstNFCTag()
 {
 	driveDistance(50);
 	bool tagRead = false;
@@ -688,7 +874,7 @@ int getCountsForDistance(int distanceInMM)
 	return roundedCount;
 }
 
-void NeunziggradaufLinefahren() {
+void NeunziggradaufLinefahrenRight() {
 	bool linedetected = false;
 	while (!linedetected) {
 		motors.setSpeeds(generalMotorSpeed, generalMotorSpeed);
@@ -697,6 +883,33 @@ void NeunziggradaufLinefahren() {
 	motors.setSpeeds(0, 0);
 	driveDistance(30);
 	turnRight(90);
+}
+void NeunziggradaufLinefahrenLeft() {
+	bool linedetected = false;
+	while (!linedetected) {
+		motors.setSpeeds(generalMotorSpeed, generalMotorSpeed);
+		linedetected = lineDetected();
+	}
+	motors.setSpeeds(0, 0);
+	driveDistance(30);
+	turnLeft(90);
+}
+
+void driveIntoPillar()
+{
+	//drive into pillar
+	double distance = distanceSensorShort();
+	motors.setSpeeds(generalMotorSpeed, generalMotorSpeed);
+	while (distance > 1.9)
+	{
+		distance = distanceSensorShort();
+		delay(100);
+	}
+	motors.setSpeeds(0, 0);
+	motors.setSpeeds(generalMotorSpeed, generalMotorSpeed);
+	delay(1000);
+	motors.setSpeeds(0, 0);
+
 }
 
 void driveDistanceBack(int distanceInMM)
@@ -752,11 +965,17 @@ void initLineArray()
 
 	//sensors[0] (leftest) is broken;
 	//sensor[5] is most right
-
 	bool calibrateWithTurn = true; //for debugging reasons
-	pinMode(A4, OUTPUT);
+	pinMode(EMITTER_PIN, OUTPUT);
+	//pinMode(DO_NOT_USE_BECAUSE_IT_IS_SOLDERD, OUTPUT);
+	//digitalWrite(EMITTER_PIN,LOW);
+	//digitalWrite(DO_NOT_USE_BECAUSE_IT_IS_SOLDERD, LOW);
+
+
 	// Initialize the reflectance sensors module
-	reflectanceSensors.init(A4);
+	//byte pins[3] = { SENSOR1,SENSOR3,SENSOR4 };
+	reflectanceSensors.init(EMITTER_PIN);
+	//reflectanceSensors.init(pins,3,2000,EMITTER_PIN);
 	if (calibrateWithTurn)
 	{
 		lcd.clear();
@@ -968,7 +1187,8 @@ void driverOverBridge()
 void driveOnRightSensorWithDistance(int Distance)
 {
 	int distancebefore = distanceNormalSensor(RIGHT_DISTANCE_SENSOR);
-	int speedDifference = (Distance - distanceNormalSensor(RIGHT_DISTANCE_SENSOR)) * 15;
+	/*int distancebefore = rightSensor.getDist() / 10;*/
+	int speedDifference = (Distance - distancebefore) * 15;
 	if (speedDifference > 40) { speedDifference = 40; }
 	if (speedDifference < -40) { speedDifference = -40; }
 
@@ -977,6 +1197,22 @@ void driveOnRightSensorWithDistance(int Distance)
 
 	int m1Speed = generalMotorSpeed - speedDifference;
 	int m2Speed = generalMotorSpeed + speedDifference;
+	motors.setSpeeds(m1Speed, m2Speed);
+}
+
+void driveOnLeftSensorWithDistance(int Distance)
+{
+	int distancebefore = distanceNormalSensor(LEFT_DISTANCE_SENSOR);
+	/*int distancebefore = rightSensor.getDist() / 10;*/
+	int speedDifference = (Distance - distancebefore) * 15;
+	if (speedDifference > 40) { speedDifference = 40; }
+	if (speedDifference < -40) { speedDifference = -40; }
+
+	lcd.print(speedDifference);
+	lcd.clear();
+
+	int m1Speed = generalMotorSpeed + speedDifference;
+	int m2Speed = generalMotorSpeed - speedDifference;
 	motors.setSpeeds(m1Speed, m2Speed);
 }
 
@@ -1018,7 +1254,7 @@ void readTemperature() {
 	long median;
 	float ob_temp[5];
 	for (int i = 0; i < 5; i++) {
-		ob_temp[i] = Objekt_Temp();
+		ob_temp[i] = Temperatursensor.GetObjectTemp_Celsius();
 	}
 	median = getMedian(5, ob_temp);
 	lcd.clear();
@@ -1030,13 +1266,6 @@ void readTemperature() {
 	delay(2000);
 }
 
-
-float Objekt_Temp() {
-	return Temperatursensor.GetObjectTemp_Celsius();
-}
-float Umgeb_Temp() {
-	return Temperatursensor.GetAmbientTemp_Celsius();
-}
 
 ////////////////////
 //Magnet
