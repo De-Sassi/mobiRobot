@@ -203,7 +203,8 @@ void setup()
 
 void loop()
 {
-	
+
+
 	//driveOnLine();
 	//unsigned int sensors[5];
 	//reflectanceSensors.read(sensors); //Sensoren werden ausgelesen
@@ -242,8 +243,8 @@ void loop()
 		{
 			driveDistanceBack(170);
 			turnRight(90);
-			driveDistance(420);
-			turnLeft(90);
+			driveDistance(380);
+			NeunziggradaufLinefahrenLeft();
 			bool stillOnLine = true;
 			while (stillOnLine) //follow the line until end
 			{
@@ -252,27 +253,13 @@ void loop()
 				stillOnLine = lineDetected();
 			}
 			motors.setSpeeds(0, 0);
-
-			/*	firstNFCTag_FirstBridge();
-				lcd.clear();
-				lcd.setCursor(0, 0);
-				lcd.print("read Tag");
-
-				driveToMagnet1_FirstBridge();
-				lcd.clear();
-				lcd.setCursor(0, 0);
-				lcd.print("Magnet measure");
-				delay(1000);
-				measureMagnetfield();
-				delay(1000);*/
-				//driveToHeat1StraightBridge();
 		}
 		else
 		{
 			lcd.clear();
 			lcd.setCursor(0, 0);
 			lcd.print("go to other bridge");
-			turnRight(85);
+			turnRight(83);
 			driveDistance(500); //drive to Other Bridge
 			driveOverSecondBridge();
 			/*strategySecondBridge();*/
@@ -345,7 +332,7 @@ void strategySecondBridge(bool firstBridgeCrossed) {
 	lcd.clear();
 	lcd.setCursor(0, 0);
 	lcd.print("Find Magnet 1");
-	turnLeft(100);
+	turnLeft(98);
 	driveIntoPillar();
 	measureMagnetfield();
 	driveDistanceBack(40);
@@ -440,9 +427,9 @@ void strategySecondBridge(bool firstBridgeCrossed) {
 		lcd.setCursor(0, 0);
 		lcd.print("go to bridge one");
 		delay(4000);
-		driveDistanceBack(80);
-		turnRight(90);
-		driveDistance(450);
+		driveDistanceBack(200);
+		turnRight(85);
+		driveDistance(300);
 		NeunziggradaufLinefahrenLeft();
 
 
@@ -583,6 +570,7 @@ void driveOverSecondBridge()
 	lcd.setCursor(0, 0);
 	lcd.print("drive over bridge");
 	delay(2000);
+	driveDistance(5);
 	stillOnLine = false;
 	while (!stillOnLine) { //when line endet up, follow the Bridgebunches until sees next line 
 		driverOverBridge();
@@ -612,9 +600,30 @@ void driveToFirstBridge()
 	lcd.setCursor(0, 0);
 	lcd.print("go to straight bridge");
 	turnLeft(45);
-	driveDistance(480);
-	turnRight(45);
 	driveDistance(250);
+	turnRight(45);
+	bool lineFound = false;
+	motors.setSpeeds(generalMotorSpeed, generalMotorSpeed);
+	NeunziggradaufLinefahrenLeft();
+	while (distanceNormalSensor(RIGHTFRONT_DISTANCE_SENSOR) > 28)
+	{
+		driveOnLine();
+	}
+	motors.setSpeeds(0, 0);
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("distance reached");
+	delay(1000);
+	turnRight(90);
+	bool linedetected = false;
+	while (!linedetected) {
+		motors.setSpeeds(generalMotorSpeed, generalMotorSpeed);
+		linedetected = lineDetected();
+	}
+	motors.setSpeeds(0, 0);
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("line detected");
 	delay(1000);
 }
 
@@ -1178,10 +1187,27 @@ bool lineDetected() {
 //Banden Fahren
 void driverOverBridge()
 {
-	int speedDifference = (distanceNormalSensor(RIGHT_DISTANCE_SENSOR) - distanceNormalSensor(LEFT_DISTANCE_SENSOR)) * 20;
+	/*int speedDifference = (distanceNormalSensor(RIGHT_DISTANCE_SENSOR) - distanceNormalSensor(LEFT_DISTANCE_SENSOR)) * 20;
 	int m1Speed = generalMotorSpeed + speedDifference;
 	int m2Speed = generalMotorSpeed - speedDifference;
-	motors.setSpeeds(m1Speed, m2Speed);
+	motors.setSpeeds(m1Speed, m2Speed);*/
+	int speedDiff = 40;
+	double diff = distanceNormalSensor(RIGHT_DISTANCE_SENSOR) - distanceNormalSensor(LEFT_DISTANCE_SENSOR);
+	if (diff > 1|| diff < -1)
+	{
+		if (diff > 0)
+		{
+			motors.setSpeeds(generalMotorSpeed + speedDiff, generalMotorSpeed-speedDiff);
+		}
+		else
+		{
+			motors.setSpeeds(generalMotorSpeed-speedDiff, generalMotorSpeed+speedDiff);
+		}
+	}
+	else
+	{
+		motors.setSpeeds(generalMotorSpeed, generalMotorSpeed);
+	}
 }
 
 void driveOnRightSensorWithDistance(int Distance)
