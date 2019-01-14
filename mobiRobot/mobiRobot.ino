@@ -232,6 +232,8 @@ void loop()
 
 	if (Prog_START)
 	{
+
+
 		lcd.clear();
 		lcd.setCursor(0, 0);
 		lcd.print("start");
@@ -259,7 +261,7 @@ void loop()
 			lcd.clear();
 			lcd.setCursor(0, 0);
 			lcd.print("go to other bridge");
-			turnRight(83);
+			turnRight(85);
 			driveDistance(500); //drive to Other Bridge
 			driveOverSecondBridge();
 			/*strategySecondBridge();*/
@@ -549,8 +551,12 @@ void strategySecondBridge(bool firstBridgeCrossed) {
 	motors.setSpeeds(0, 0);
 	driveDistance(100);
 	turnRight(90);
+	driveDistanceBack(20);
 
-
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("FINSIH :D");
+	delay(5000);
 
 }
 
