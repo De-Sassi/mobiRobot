@@ -1323,15 +1323,15 @@ void measureMagnetfield() {
 	}
 	else {
 
-		if (median < 504 || median > 528) { //ursprünglich 502 und 530
+		if (median < 498 || median > 535) { //ursprünglich 502 und 530
 			lcd.clear();
 			lcd.setCursor(0, 0);
-			lcd.print("starkes Magnet");
+			lcd.print("starker Magnet");
 		}
 		else {
 			lcd.clear();
 			lcd.setCursor(0, 0);
-			lcd.print("schwaches Magnet");
+			lcd.print("schwacher Magnet");
 		}
 	}
 	delay(2000);
